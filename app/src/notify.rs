@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use mailrs_domain::{MessageMeta, Role, Target};
+use mailrs_domain::{AccountId, MessageMeta, Role, Target};
 use mailrs_sync::{MailAction, TriageAction};
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +107,14 @@ pub fn still_applies(button: Button, message: &MessageMeta) -> bool {
         Button::Delete => !message.in_role(Role::Trash),
         Button::Reply => true,
     }
+}
+
+/// Whether the notification for `message` has nothing left to say: the
+/// mail is read, out of the inbox it was announced in, or gone from the
+/// store. The desktop keeps a notification until the app takes it back,
+/// so reading the mail here or on another device withdraws it.
+pub fn settled(message: Option<&MessageMeta>) -> bool {
+    message.is_none_or(|m| !m.is_unread() || !m.in_role(Role::Inbox))
 }
 
 /// One new-mail notification: what it says, the message its clicks act
@@ -220,6 +228,31 @@ impl Issued {
         self.shown.insert(token, (target, buttons));
     }
 
+    /// The notifications posted for messages in `thread_ids` of
+    /// `account_id`, oldest first: each token and the message it
+    /// announced.
+    pub fn in_threads(
+        &self,
+        account_id: AccountId,
+        thread_ids: &[String],
+    ) -> Vec<(String, Target)> {
+        self.order
+            .iter()
+            .filter_map(|token| {
+                let (target, _) = self.shown.get(token)?;
+                (target.account_id == account_id && thread_ids.contains(&target.thread_id))
+                    .then(|| (token.clone(), target.clone()))
+            })
+            .collect()
+    }
+
+    /// Stops answering for `token`, once its notification is withdrawn.
+    pub fn forget(&mut self, token: &str) {
+        if self.shown.remove(token).is_some() {
+            self.order.retain(|kept| kept != token);
+        }
+    }
+
     /// What a click with `parameter` asks for, or `None` for a token this
     /// copy never issued or a button its notification did not show.
     pub fn request(&self, parameter: &str) -> Option<Request> {
@@ -313,6 +346,41 @@ mod tests {
         assert_eq!(issued.request(&parameter("tok0", OPEN_KEY)), None);
         let newest = format!("tok{}", Issued::KEPT);
         assert!(issued.request(&parameter(&newest, OPEN_KEY)).is_some());
+    }
+
+    #[test]
+    fn a_thread_change_finds_the_notifications_for_its_messages() {
+        let mut issued = Issued::default();
+        issued.issue("tok1".into(), thread("t1"), vec![]);
+        issued.issue("tok2".into(), thread("t2"), vec![]);
+        let mut other = thread("t1");
+        other.account_id = 2;
+        issued.issue("tok3".into(), other, vec![]);
+        let found = issued.in_threads(1, &["t1".to_string(), "t9".to_string()]);
+        assert_eq!(found, vec![("tok1".to_string(), thread("t1"))]);
+        assert!(issued.in_threads(3, &["t1".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn a_withdrawn_notification_stops_answering() {
+        let mut issued = Issued::default();
+        issued.issue("tok1".into(), thread("t1"), vec![Button::Reply]);
+        issued.forget("tok1");
+        assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
+        assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
+        issued.forget("never");
+    }
+
+    #[test]
+    fn a_notification_settles_once_its_mail_is_read_moved_or_gone() {
+        use mailrs_sync::fake::meta;
+        let unread_in_inbox = meta("m1", "t1", 0, &["INBOX", "UNREAD"]);
+        let read_in_inbox = meta("m2", "t1", 0, &["INBOX"]);
+        let archived_unread = meta("m3", "t1", 0, &["UNREAD"]);
+        assert!(!settled(Some(&unread_in_inbox)));
+        assert!(settled(Some(&read_in_inbox)));
+        assert!(settled(Some(&archived_unread)));
+        assert!(settled(None), "mail the store no longer holds");
     }
 
     #[test]

@@ -1298,13 +1298,19 @@ impl App {
             while let Ok(event) = this.core.events.recv().await {
                 this.unread.heard(&event);
                 this.tell_window(Notice::Engine(&event));
-                if let ChangeEvent::NewMail {
-                    account_id,
-                    message_ids,
-                } = &event
-                {
-                    this.contacts_stale.set(true);
-                    this.after_rules(*account_id, message_ids.clone());
+                match &event {
+                    ChangeEvent::NewMail {
+                        account_id,
+                        message_ids,
+                    } => {
+                        this.contacts_stale.set(true);
+                        this.after_rules(*account_id, message_ids.clone());
+                    }
+                    ChangeEvent::ThreadsChanged {
+                        account_id,
+                        thread_ids,
+                    } => this.settle_notifications(*account_id, thread_ids),
+                    _ => {}
                 }
             }
         });
@@ -1366,6 +1372,44 @@ impl App {
             }
             self.gio.send_notification(Some(&token), &notification);
         }
+    }
+
+    /// Takes back the notifications for mail in `thread_ids` that was read,
+    /// archived or trashed since it arrived, here or on another device.
+    /// The desktop keeps a notification until the app withdraws it, long
+    /// after the mail it announced was read in the window.
+    fn settle_notifications(self: &Rc<Self>, account_id: AccountId, thread_ids: &[String]) {
+        let pending = self.issued.borrow().in_threads(account_id, thread_ids);
+        if pending.is_empty() {
+            return;
+        }
+        let this = Rc::clone(self);
+        glib::spawn_future_local(async move {
+            let ids: Vec<String> = pending
+                .iter()
+                .filter_map(|(_, target)| target.message_id.clone())
+                .collect();
+            let found = this
+                .core
+                .read(move |c| messages::by_ids(c, account_id, &ids))
+                .await;
+            let found = match found {
+                Ok(found) => found,
+                Err(err) => {
+                    tracing::warn!(error = %err, "could not read the mail behind a notification");
+                    return;
+                }
+            };
+            for (token, target) in pending {
+                let message = found
+                    .iter()
+                    .find(|m| Some(&m.id) == target.message_id.as_ref());
+                if notify::settled(message) {
+                    this.gio.withdraw_notification(&token);
+                    this.issued.borrow_mut().forget(&token);
+                }
+            }
+        });
     }
 
     /// Does what somebody picked on a notification. The mail may have been
