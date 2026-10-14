@@ -1338,8 +1338,8 @@ impl App {
     }
 
     /// Posts the new-mail notifications for `messages`. Each gets a fresh
-    /// token, which the clicks on one that acts on a message carry back,
-    /// and which withdraws any of them once its mail is read.
+    /// token: clicks carry it back, and the app withdraws by it once the
+    /// mail is read.
     pub(crate) fn announce_mail(
         &self,
         messages: Vec<mailrs_domain::MessageMeta>,
@@ -1356,7 +1356,7 @@ impl App {
             notification.set_category(Some("email.arrived"));
             let action = format!("app.{}", notify::CHOSEN);
             let token = Alphanumeric.sample_string(&mut rand::rng(), 24);
-            if let Some(target) = notice.target {
+            let evicted = if let Some(target) = notice.target {
                 let open = notify::parameter(&token, notify::OPEN_KEY);
                 notification.set_default_action_and_target_value(&action, Some(&open.to_variant()));
                 for button in &notice.buttons {
@@ -1369,11 +1369,16 @@ impl App {
                 }
                 self.issued
                     .borrow_mut()
-                    .issue(token.clone(), target, notice.buttons);
+                    .issue(token.clone(), target, notice.buttons)
             } else {
                 self.issued
                     .borrow_mut()
-                    .issue_summary(token.clone(), notice.counted);
+                    .issue_summary(token.clone(), notice.counted)
+            };
+            // One pushed out of the list would stay on screen with clicks
+            // that do nothing, so it goes now.
+            if let Some(evicted) = evicted {
+                self.gio.withdraw_notification(&evicted);
             }
             self.gio.send_notification(Some(&token), &notification);
         }
@@ -1610,9 +1615,12 @@ impl App {
                 .core
                 .read(move |c| announced(c, account_id, &message_ids))
                 .await;
+            // Mail read or filed between the engine's word and this read
+            // would get a notification nothing withdraws, so it gets none.
             let found = found.map(|found| {
                 found
                     .into_iter()
+                    .filter(|m| still_news(m.in_role(Role::Inbox), m.is_unread()))
                     .filter(|m| {
                         !settings.notify_vips_only
                             || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email))

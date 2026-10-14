@@ -117,10 +117,9 @@ pub fn settled(message: Option<&MessageMeta>) -> bool {
     message.is_none_or(|m| !m.is_unread() || !m.in_role(Role::Inbox))
 }
 
-/// The tokens among `pending` to withdraw, given what the store holds for
-/// their messages in `found`: those every counted message of which has
-/// settled. A message the store no longer holds is missing from `found`
-/// and counts as settled.
+/// The tokens among `pending` whose counted messages have all settled,
+/// given what the store holds for them in `found`. A message the store
+/// no longer holds is missing from `found` and counts as settled.
 pub fn to_withdraw(pending: &[(String, Vec<Target>)], found: &[MessageMeta]) -> Vec<String> {
     let found: HashMap<&str, &MessageMeta> = found.iter().map(|m| (m.id.as_str(), m)).collect();
     pending
@@ -149,21 +148,21 @@ pub struct Notice {
     pub target: Option<Target>,
     pub buttons: Vec<Button>,
     /// Every message the notification announced: the one in `target`, or
-    /// all the ones a summary counted.
+    /// all the ones a summary counted. Each names its message id, which
+    /// is how the app later asks the store whether it is still unread.
     pub counted: Vec<Target>,
 }
 
 /// The notifications for `messages`: one each for up to three, one summary
 /// beyond that. With `previews` off, they say only how much mail arrived.
 pub fn notices(messages: Vec<MessageMeta>, previews: bool, buttons: Vec<Button>) -> Vec<Notice> {
-    let counted: Vec<Target> = messages.iter().map(target_of).collect();
     let notice = |title, body, target: Option<Target>| Notice {
         title,
         body,
         buttons: if target.is_some() { buttons.clone() } else { Vec::new() },
         counted: match &target {
             Some(target) => vec![target.clone()],
-            None => counted.clone(),
+            None => messages.iter().map(target_of).collect(),
         },
         target,
     };
@@ -255,30 +254,37 @@ impl Issued {
     const KEPT: usize = 200;
 
     /// Records a notification posted under `token`, which the caller makes
-    /// unguessable, whose clicks act on `target`.
-    pub fn issue(&mut self, token: String, target: Target, buttons: Vec<Button>) {
+    /// unguessable, whose clicks act on `target`. Answers the token of the
+    /// oldest notification when this one pushes it out, for the caller to
+    /// withdraw: its clicks would do nothing from now on.
+    pub fn issue(&mut self, token: String, target: Target, buttons: Vec<Button>) -> Option<String> {
         let shown = Shown {
             counted: vec![target.clone()],
             acts_on: Some((target, buttons)),
         };
-        self.keep(token, shown);
+        self.keep(token, shown)
     }
 
-    /// Records a summary posted under `token` that counted `counted` and
-    /// acts on none of them. Its token never answers a click; it is kept
-    /// so the summary can go once every message it counted is read.
-    pub fn issue_summary(&mut self, token: String, counted: Vec<Target>) {
-        self.keep(token, Shown { counted, acts_on: None });
+    /// Records a summary posted under `token` that counted `counted`, all
+    /// from one account, and acts on none of them. Its token never
+    /// answers a click; it is kept so the summary can go once every
+    /// message it counted is read. Answers an evicted token as `issue`.
+    pub fn issue_summary(&mut self, token: String, counted: Vec<Target>) -> Option<String> {
+        self.keep(token, Shown { counted, acts_on: None })
     }
 
-    fn keep(&mut self, token: String, shown: Shown) {
-        if self.order.len() == Self::KEPT
-            && let Some(oldest) = self.order.pop_front()
-        {
-            self.shown.remove(&oldest);
+    fn keep(&mut self, token: String, shown: Shown) -> Option<String> {
+        let evicted = if self.order.len() == Self::KEPT {
+            self.order.pop_front()
+        } else {
+            None
+        };
+        if let Some(oldest) = &evicted {
+            self.shown.remove(oldest);
         }
         self.order.push_back(token.clone());
         self.shown.insert(token, shown);
+        evicted
     }
 
     /// The notifications that counted a message in `thread_ids` of
@@ -402,12 +408,28 @@ mod tests {
     #[test]
     fn the_oldest_notification_stops_answering_once_enough_are_newer() {
         let mut issued = Issued::default();
-        for n in 0..=Issued::KEPT {
-            issued.issue(format!("tok{n}"), thread(&format!("t{n}")), vec![]);
+        for n in 0..Issued::KEPT {
+            let evicted = issued.issue(format!("tok{n}"), thread(&format!("t{n}")), vec![]);
+            assert_eq!(evicted, None, "there was room for tok{n}");
         }
-        assert_eq!(issued.request(&parameter("tok0", OPEN_KEY)), None);
         let newest = format!("tok{}", Issued::KEPT);
+        let evicted = issued.issue(newest.clone(), thread("tN"), vec![]);
+        assert_eq!(evicted.as_deref(), Some("tok0"), "the caller withdraws what was evicted");
+        assert_eq!(issued.request(&parameter("tok0", OPEN_KEY)), None);
         assert!(issued.request(&parameter(&newest, OPEN_KEY)).is_some());
+    }
+
+    #[test]
+    fn a_thread_change_lists_notifications_oldest_first() {
+        let mut issued = Issued::default();
+        issued.issue("second".into(), thread("t2"), vec![]);
+        issued.issue("first".into(), thread("t1"), vec![]);
+        let tokens: Vec<String> = issued
+            .in_threads(1, &["t1".to_string(), "t2".to_string()])
+            .into_iter()
+            .map(|(token, _)| token)
+            .collect();
+        assert_eq!(tokens, ["second", "first"]);
     }
 
     #[test]
@@ -430,7 +452,10 @@ mod tests {
         issued.forget("tok1");
         assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
         assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
+        // A token never issued, or forgotten twice, is nothing to forget.
         issued.forget("never");
+        issued.forget("tok1");
+        assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
     }
 
     #[test]
@@ -528,6 +553,20 @@ mod tests {
         assert_eq!(shown[0].body, "");
         assert_eq!(shown[0].buttons, [Button::Reply]);
         assert_eq!(shown[0].target.as_ref().map(|t| t.thread_id.as_str()), Some("t1"));
+    }
+
+    #[test]
+    fn without_previews_several_messages_make_one_summary_that_counts_them_all() {
+        use mailrs_sync::fake::meta;
+        let two: Vec<_> = (0..2)
+            .map(|n| meta(&format!("m{n}"), &format!("t{n}"), 0, &["INBOX", "UNREAD"]))
+            .collect();
+        let shown = notices(two, false, Button::ALL.to_vec());
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].target, None);
+        assert!(shown[0].buttons.is_empty());
+        let counted: Vec<_> = shown[0].counted.iter().map(|t| t.thread_id.as_str()).collect();
+        assert_eq!(counted, ["t0", "t1"]);
     }
 
     #[test]
