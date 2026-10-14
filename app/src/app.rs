@@ -1337,8 +1337,9 @@ impl App {
         });
     }
 
-    /// Posts the new-mail notifications for `messages`. Each one that acts
-    /// on a message gets a fresh token, which its clicks carry back.
+    /// Posts the new-mail notifications for `messages`. Each gets a fresh
+    /// token, which the clicks on one that acts on a message carry back,
+    /// and which withdraws any of them once its mail is read.
     pub(crate) fn announce_mail(
         &self,
         messages: Vec<mailrs_domain::MessageMeta>,
@@ -1369,6 +1370,10 @@ impl App {
                 self.issued
                     .borrow_mut()
                     .issue(token.clone(), target, notice.buttons);
+            } else {
+                self.issued
+                    .borrow_mut()
+                    .issue_summary(token.clone(), notice.counted);
             }
             self.gio.send_notification(Some(&token), &notification);
         }
@@ -1387,7 +1392,7 @@ impl App {
         glib::spawn_future_local(async move {
             let ids: Vec<String> = pending
                 .iter()
-                .filter_map(|(_, target)| target.message_id.clone())
+                .flat_map(|(_, counted)| counted.iter().filter_map(|t| t.message_id.clone()))
                 .collect();
             let found = this
                 .core

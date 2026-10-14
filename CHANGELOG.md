@@ -17,7 +17,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
-- A new-mail notification leaves the notification center once its message is read, archived or deleted, in the window or on another device.
+- A new-mail notification leaves the notification center once its message is read, archived or deleted, in the window or on another device. A summary of several messages leaves once every one of them has.
 - Calendar-file imports point to the Calendar page in Preferences when a calendar needs enabling.
 - Fastmail accounts signed in through the browser report server storage through IMAP when JMAP provides no quota. Gmail signature import appears only for Gmail accounts.
 - JMAP server-space reports recognize Email quotas and use the mail account even when the server lists no quota-primary account. Expansion controls keep their chevrons with custom icon themes.
