@@ -1400,14 +1400,9 @@ impl App {
                     return;
                 }
             };
-            for (token, target) in pending {
-                let message = found
-                    .iter()
-                    .find(|m| Some(&m.id) == target.message_id.as_ref());
-                if notify::settled(message) {
-                    this.gio.withdraw_notification(&token);
-                    this.issued.borrow_mut().forget(&token);
-                }
+            for token in notify::to_withdraw(&pending, &found) {
+                this.gio.withdraw_notification(&token);
+                this.issued.borrow_mut().forget(&token);
             }
         });
     }

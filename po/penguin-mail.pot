@@ -2204,17 +2204,17 @@ msgstr ""
 msgid "Reply"
 msgstr ""
 
-#: app/src/notify.rs:143
+#: app/src/notify.rs:161
 msgid "{count} new message"
 msgid_plural "{count} new messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: app/src/notify.rs:161 app/src/ui/window/shortcuts.rs:463
+#: app/src/notify.rs:179 app/src/ui/window/shortcuts.rs:463
 msgid "New message"
 msgstr ""
 
-#: app/src/notify.rs:178
+#: app/src/notify.rs:196
 msgid "From {senders}"
 msgstr ""
 

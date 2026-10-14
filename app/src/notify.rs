@@ -8,7 +8,7 @@
 //! into a [`Request`]. Nothing here touches GTK or the store, so the
 //! routing and the state check live under unit tests.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use mailrs_domain::{AccountId, MessageMeta, Role, Target};
 use mailrs_sync::{MailAction, TriageAction};
@@ -115,6 +115,24 @@ pub fn still_applies(button: Button, message: &MessageMeta) -> bool {
 /// so reading the mail here or on another device withdraws it.
 pub fn settled(message: Option<&MessageMeta>) -> bool {
     message.is_none_or(|m| !m.is_unread() || !m.in_role(Role::Inbox))
+}
+
+/// The tokens among `pending` to withdraw, given what the store holds for
+/// their messages in `found`: those whose mail has settled. A message the
+/// store no longer holds is missing from `found`, and its token goes too.
+pub fn to_withdraw(pending: &[(String, Target)], found: &[MessageMeta]) -> Vec<String> {
+    let found: HashMap<&str, &MessageMeta> = found.iter().map(|m| (m.id.as_str(), m)).collect();
+    pending
+        .iter()
+        .filter(|(_, target)| {
+            let message = target
+                .message_id
+                .as_deref()
+                .and_then(|id| found.get(id).copied());
+            settled(message)
+        })
+        .map(|(token, _)| token.clone())
+        .collect()
 }
 
 /// One new-mail notification: what it says, the message its clicks act
@@ -230,17 +248,23 @@ impl Issued {
 
     /// The notifications posted for messages in `thread_ids` of
     /// `account_id`, oldest first: each token and the message it
-    /// announced.
+    /// announced. One event can name every thread of a first sync, so
+    /// the ids go into a set once and each kept token looks its thread
+    /// up there.
     pub fn in_threads(
         &self,
         account_id: AccountId,
         thread_ids: &[String],
     ) -> Vec<(String, Target)> {
+        if self.order.is_empty() {
+            return Vec::new();
+        }
+        let changed: HashSet<&str> = thread_ids.iter().map(String::as_str).collect();
         self.order
             .iter()
             .filter_map(|token| {
                 let (target, _) = self.shown.get(token)?;
-                (target.account_id == account_id && thread_ids.contains(&target.thread_id))
+                (target.account_id == account_id && changed.contains(target.thread_id.as_str()))
                     .then(|| (token.clone(), target.clone()))
             })
             .collect()
@@ -381,6 +405,24 @@ mod tests {
         assert!(settled(Some(&read_in_inbox)));
         assert!(settled(Some(&archived_unread)));
         assert!(settled(None), "mail the store no longer holds");
+    }
+
+    /// A ThreadsChanged arrives, the store says one message was read and
+    /// another is gone: those two tokens go, and the one still unread in
+    /// the inbox stays on screen.
+    #[test]
+    fn a_thread_change_withdraws_the_notifications_whose_mail_settled() {
+        use mailrs_sync::fake::meta;
+        let pending = vec![
+            ("read".to_string(), thread("t1")),
+            ("kept".to_string(), thread("t2")),
+            ("gone".to_string(), thread("t3")),
+        ];
+        let found = vec![
+            meta("t1-m", "t1", 0, &["INBOX"]),
+            meta("t2-m", "t2", 0, &["INBOX", "UNREAD"]),
+        ];
+        assert_eq!(to_withdraw(&pending, &found), ["read", "gone"]);
     }
 
     #[test]
