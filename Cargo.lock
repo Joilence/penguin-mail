@@ -2453,6 +2453,7 @@ dependencies = [
  "url",
  "webkit6",
  "wiremock",
+ "zbus",
 ]
 
 [[package]]
