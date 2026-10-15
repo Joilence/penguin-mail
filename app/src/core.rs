@@ -23,14 +23,15 @@ use mailrs_sync::lock::{LockError, SyncLock};
 use mailrs_sync::passwords::{PasswordStore, Secrets};
 use mailrs_sync::services::finding;
 use mailrs_sync::sign_in::{
-    Browser, BrowserReady, BrowserSignInError, JmapBrowser, NewImap, NewJmap, NewPop3, Wanted,
-    check_pop3, google_sign_in, imap_signed_in, in_browser, jmap_in_browser, jmap_signed_in,
-    pop3_signed_in,
+    Browser, BrowserReady, BrowserSignInError, JmapBrowser, NewCalDav, NewImap, NewJmap, NewPop3,
+    Wanted, caldav_signed_in, caldav_signed_in_again, check_pop3, google_sign_in, imap_signed_in, in_browser,
+    jmap_in_browser, jmap_signed_in, pop3_signed_in,
 };
 use mailrs_sync::{
     AccountServices, AccountSettings, AccountSync, Accounts, BackendError, Clients, ContactBook,
     Connector, Failure, History, Invitations, MailAction, MailActions, Mailboxes, MovedFrom,
-    OneClick, Outbox, Outcome, SyncEngine, SyncError, Undone, connect_imap, connect_jmap, connect_pop3,
+    OneClick, Outbox, Outcome, SyncEngine, SyncError, Undone, connect_caldav, connect_imap,
+    connect_jmap, connect_pop3,
     now_millis, pop3_servers_for, servers_for,
 };
 
@@ -863,6 +864,59 @@ impl Core {
         .await
     }
 
+    /// Adds a calendar account: tries the login on the CalDAV server at
+    /// `url`, then keeps the account, the server and the password, and
+    /// starts it, so its calendars are read at the next tick. Nothing is
+    /// kept when the login fails.
+    pub async fn sign_in_calendar(&self, url: String, user_name: String, password: String) -> Result<Account> {
+        let engine = self.calendar_engine()?;
+        let (db, passwords, calendar_copy) = (self.db.clone(), Arc::clone(&self.secrets.passwords), self.calendar_copy());
+        self.call(async move {
+            let new = NewCalDav { url, user_name, password };
+            // A failure is a `CalDavSignInError`, which the dialog reads
+            // back out of the `anyhow::Error` to word what went wrong.
+            let account = caldav_signed_in(&finding::RealProbe, &db, Arc::clone(&passwords), new, now_millis()).await?;
+            engine.start_account(account.id, connect_caldav(&db, passwords, &account).await?);
+            // The same login added again signs its account in again, which
+            // the copy reads at once rather than when it is next due.
+            calendar_copy.permission_changed(account.id);
+            Ok::<_, anyhow::Error>(account)
+        })
+        .await
+    }
+
+    /// Signs calendar account `account_id` in again, as its Sign In Again
+    /// asks, and starts it over with the new password. It keeps its
+    /// calendars; another server or user is refused.
+    pub async fn sign_in_calendar_again(
+        &self,
+        account_id: AccountId,
+        url: String,
+        user_name: String,
+        password: String,
+    ) -> Result<Account> {
+        let engine = self.calendar_engine()?;
+        let (db, passwords, calendar_copy) = (self.db.clone(), Arc::clone(&self.secrets.passwords), self.calendar_copy());
+        self.call(async move {
+            let new = NewCalDav { url, user_name, password };
+            let account = caldav_signed_in_again(&finding::RealProbe, &db, Arc::clone(&passwords), account_id, new).await?;
+            engine.start_account(account.id, connect_caldav(&db, passwords, &account).await?);
+            // The copy stops waiting out the read the old password failed.
+            calendar_copy.permission_changed(account.id);
+            Ok::<_, anyhow::Error>(account)
+        })
+        .await
+    }
+
+    /// The engine a calendar sign-in starts its account in. The demo adds
+    /// no real account.
+    fn calendar_engine(&self) -> Result<Arc<Engine>> {
+        if self.demo {
+            bail!(gettext("Demo mode cannot add real accounts."));
+        }
+        self.engine.current().ok_or_else(|| anyhow!("sync is not running"))
+    }
+
     /// Signs in to a POP3 account: signs in to the POP3 server, which
     /// must answer UIDL, then to the SMTP server, then keeps the account,
     /// its servers, its removal setting and its password, and starts
@@ -1234,6 +1288,7 @@ impl Core {
         // Nothing is left to reverse the account's actions through, and
         // its mail goes with it.
         self.actions.forget_account(account.id);
+        self.calendar_copy.forget(account.id);
         let (db, secrets, demo) = (self.db.clone(), self.secrets.clone(), self.demo);
         self.call(async move {
             let id = account.id;
@@ -1242,6 +1297,10 @@ impl Core {
                 true => None,
                 false => mailrs_sync::jmap_grant(&db, &account).await,
             };
+            // A calendar sign-in writing this account's password finishes
+            // first: once the row goes, the next account added may take
+            // its id, and must not find this one's password under it.
+            let _turn = mailrs_sync::sign_in::secrets_turn().await;
             db.write(move |c| accounts::delete_account(c, id)).await?;
             // Only now that the row is gone: retiring the session stops it
             // saving, and the token it answers is the one to revoke.

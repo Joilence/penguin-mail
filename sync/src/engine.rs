@@ -97,6 +97,9 @@ impl SyncEngine {
 
     /// Starts the account's loop, replacing one that is already running.
     /// Call it from inside a tokio runtime.
+    ///
+    /// An account with no mail gets no loop and is kept all the same, so
+    /// its services answer for it.
     pub fn start_account(&self, account_id: AccountId, services: AccountServices) {
         services
             .mail
@@ -254,6 +257,16 @@ async fn supervise(
     network: Arc<AtomicBool>,
     config: EngineConfig,
 ) {
+    // An account with no mail has no change feed to follow and nothing to
+    // backfill. Its calendar is read on the app's own timer, and the
+    // calendar copy, which alone talks to its server, says how it is
+    // doing. Here it says once that it started, then waits to be stopped.
+    if !sync.services().serves_mail() {
+        if let Err(err) = sync.restate().await {
+            tracing::warn!(account = sync.account_id(), error = %err, "could not read the account state");
+        }
+        return std::future::pending().await;
+    }
     let mut crashed = false;
     loop {
         let run = run_account(

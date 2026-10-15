@@ -118,7 +118,30 @@ impl Settings {
             .unwrap_or(usize::MAX)
     }
 
-    /// Inserts one live account before or after another without changing its identity.
+    /// Writes `moved`, the accounts of `shown` in their new order, into the
+    /// saved order. Each takes the next place one of them held, and an
+    /// account the list does not show, such as a calendar account in the
+    /// mail sidebar or a row this build cannot read, keeps its own.
+    pub(super) fn place_shown(&mut self, shown: &[&str], moved: Vec<String>) {
+        let is_shown = |email: &str| shown.iter().any(|s| s.eq_ignore_ascii_case(email));
+        let mut order = self.account_order.clone();
+        for email in self.ordered(shown) {
+            if !order.iter().any(|saved| saved.eq_ignore_ascii_case(email)) {
+                order.push(email.to_string());
+            }
+        }
+        let mut moved = moved.into_iter();
+        for slot in order.iter_mut().filter(|slot| is_shown(slot)) {
+            if let Some(email) = moved.next() {
+                *slot = email;
+            }
+        }
+        self.account_order = order;
+    }
+
+    /// Inserts one live account before or after another without changing
+    /// its identity. `emails` are the accounts the list on screen shows;
+    /// the others keep their places.
     pub fn reorder_account(&mut self, emails: &[&str], email: &str, target: &str, after: bool) {
         if email.eq_ignore_ascii_case(target) {
             return;
@@ -145,7 +168,24 @@ impl Settings {
             return;
         };
         order.insert(to + usize::from(after), moved);
-        self.account_order = order;
+        self.place_shown(emails, order);
+    }
+}
+
+/// The accounts a picker for `task` offers, in the order given. Only
+/// calendar events can go to a calendar account; every other task, and
+/// the default account over them all (`None`), sends or reads mail.
+pub fn accounts_for(task: Option<AccountUse>, accounts: &[mailrs_domain::Account]) -> Vec<mailrs_domain::Account> {
+    match task {
+        Some(AccountUse::Calendar) => accounts.to_vec(),
+        None
+        | Some(
+            AccountUse::NewMessages
+            | AccountUse::Replies
+            | AccountUse::Forwards
+            | AccountUse::Assistant
+            | AccountUse::Startup,
+        ) => mailrs_domain::mail_accounts(accounts),
     }
 }
 
@@ -181,6 +221,41 @@ pub fn preferred_calendar(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_calendar_events_can_go_to_a_calendar_account() {
+        let account = |id, provider| mailrs_domain::Account {
+            id,
+            email: format!("{id}@example.org"),
+            state: mailrs_domain::AccountState::Ok,
+            provider,
+            provider_name: None,
+        };
+        let all = [account(1, mailrs_domain::Provider::Imap), account(2, mailrs_domain::Provider::CalDav)];
+        let ids = |task| accounts_for(task, &all).iter().map(|a| a.id).collect::<Vec<_>>();
+        assert_eq!(ids(Some(AccountUse::Calendar)), [1, 2]);
+        assert_eq!(ids(None), [1], "the default account writes mail");
+        for task in AccountUse::ALL.into_iter().filter(|task| *task != AccountUse::Calendar) {
+            assert_eq!(ids(Some(task)), [1], "{task:?}");
+        }
+    }
+
+    #[test]
+    fn moving_the_accounts_a_list_shows_keeps_the_others_in_place() {
+        let saved = |settings: &Settings| settings.account_order.join(" ");
+        let order = |emails: &[&str]| Settings { account_order: emails.iter().map(|e| e.to_string()).collect(), ..Settings::default() };
+        let mut settings = order(&["a", "cal", "b", "c"]);
+        let shown = ["a", "b", "c"];
+        settings.move_account(&shown, "b", -1);
+        assert_eq!(saved(&settings), "b cal a c", "the calendar account keeps its place");
+        settings.reorder_account(&shown, "c", "b", false);
+        assert_eq!(saved(&settings), "c cal b a");
+
+        // One the saved order never listed joins it at the end.
+        let mut settings = order(&["cal", "a"]);
+        settings.move_account(&["a", "new"], "new", -1);
+        assert_eq!(saved(&settings), "cal new a");
+    }
 
     #[test]
     fn a_removed_assistant_default_follows_the_new_message_choice() {

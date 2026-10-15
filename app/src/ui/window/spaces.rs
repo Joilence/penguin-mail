@@ -59,9 +59,10 @@ impl MainWindow {
     }
 
     /// Shows `space` through the switch, which then shows it and
-    /// remembers it. The calendar stays away while the switch is hidden.
+    /// remembers it, unless the accounts leave it nothing to show
+    /// (`offered::may_show`).
     pub(super) fn show_space(self: &Rc<Self>, space: Space) {
-        if space == Space::Calendar && !self.sidebar.switch.is_visible() {
+        if !crate::offered::may_show(space, self.sidebar.switch.is_visible(), &self.accounts()) {
             return;
         }
         let name = match space {
@@ -184,7 +185,8 @@ impl MainWindow {
 
     /// Hands the calendar the accounts just read, and shows or hides the
     /// switch: it shows once a running account offers a calendar (ruling
-    /// R9). The first read also goes back to the space shown last.
+    /// R9), unless no account has mail. The first read also goes back to
+    /// the space shown last.
     pub(super) fn accounts_for_calendar(self: &Rc<Self>, accounts: &[Account]) {
         let mut started = Vec::new();
         let mut waiting = false;
@@ -195,9 +197,14 @@ impl MainWindow {
             }
         }
         let remembered = self.settings().space;
-        let visible = crate::offered::shows_space_switch(&started, waiting, remembered);
+        // With calendar accounts alone there is no mail to switch to: the
+        // calendar shows, and the switch stays away.
+        let only_calendars = crate::offered::only_calendars(accounts);
+        let visible = !only_calendars && crate::offered::shows_space_switch(&started, waiting, remembered);
         self.sidebar.set_switch_visible(visible);
-        if !visible && self.space() == Space::Calendar {
+        if only_calendars {
+            self.show_space(Space::Calendar);
+        } else if !visible && self.space() == Space::Calendar {
             self.show_space(Space::Mail);
         }
         if visible && !self.space_restored.get() {

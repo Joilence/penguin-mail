@@ -22,6 +22,7 @@ pub use google::withheld as withheld_by_grant;
 pub mod imap;
 pub mod jmap;
 pub mod microsoft;
+mod no_mail;
 pub mod pop3;
 pub(crate) mod local;
 mod pacing;
@@ -38,6 +39,7 @@ pub use google::{Google, ID_PAGE_SIZE, LIST_PAGE_SIZE, is_workspace};
 pub use imap::{Imap, ImapApi, ImapSettings, Submit};
 pub use jmap::{Jmap, JmapApi, JmapSettings, JmapSieve, SERVER_REPLY_SCRIPT};
 pub use microsoft::{GraphApi, Microsoft, MicrosoftSettings};
+pub use no_mail::NoMail;
 pub use pop3::{Pop3, Pop3Settings};
 pub use pacing::{Priority, background, priority};
 pub use sieve::SieveRules;
@@ -426,6 +428,36 @@ impl AccountServices {
         }
     }
 
+    /// A calendar account: the calendars of the CalDAV server behind
+    /// `dav` and no mail. The mail and the identities are the stand-ins
+    /// that answer for an account with neither, and the calendar asks the
+    /// server which addresses the account goes by.
+    pub fn calendar_only(dav: impl Into<AnyDav>) -> Self {
+        let calendar = CalDav::new(Arc::new(dav.into()), AnyMail::NoMail(NoMail), Vec::new());
+        AccountServices {
+            mail: AnyMail::NoMail(NoMail),
+            calendar: Some(AnyCalendar::Dav(calendar)),
+            contacts: None,
+            rules: None,
+            auto_reply: None,
+            identities: AnyIdentities::NoMail(NoMail),
+        }
+    }
+
+    /// Whether the account has mail at all. A calendar account has
+    /// none, and the engine runs no mail loop for it.
+    pub fn serves_mail(&self) -> bool {
+        self.mail.serves_mail()
+    }
+
+    /// Whether an answer to an invitation reaches its organizer, as the
+    /// calendar stands now. A calendar account's server says whether it
+    /// sends replies only once it has been read, so this is asked when
+    /// the answer is offered and never kept.
+    pub fn tells_organizer(&self) -> bool {
+        self.calendar.as_ref().is_none_or(AnyCalendar::tells_organizer)
+    }
+
     pub fn with_calendar(mut self, calendar: AnyCalendar) -> Self {
         self.calendar = Some(calendar);
         self
@@ -582,7 +614,8 @@ impl AccountServices {
             auto_reply_contacts_only: self.auto_reply.as_ref().is_some_and(AutoReplyService::limits_to_contacts),
             // Gmail, IMAP and Graph search on the server. A POP3 account's
             // server keeps nothing to search; its mail is all in the store.
-            search: !caps.local_mailboxes,
+            // A calendar account has no mail to search at all.
+            search: self.serves_mail() && !caps.local_mailboxes,
             tags: caps.tags,
             focused: caps.focus,
             event_files: features.event_files,
@@ -1597,6 +1630,7 @@ mod tests {
         let services = AccountServices::google(gmail);
         assert_eq!(services.offers(), Offers::EVERYTHING);
         assert!(services.offers().missing().is_empty());
+        assert!(services.serves_mail());
     }
 
     #[test]

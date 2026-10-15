@@ -663,7 +663,7 @@ impl MainWindow {
 
             let w = weak.clone();
             let microsoft = super::add_account::signs_in_to_microsoft(&app.core);
-            let by_hand = weak.clone();
+            let (by_hand, calendar_alone) = (weak.clone(), weak.clone());
             let first_page = welcome::first_account_page(
                 microsoft,
                 move |tile| {
@@ -677,6 +677,11 @@ impl MainWindow {
                 move || {
                     if let Some(win) = by_hand.upgrade() {
                         win.present_add_account(Opening::ByHand);
+                    }
+                },
+                move || {
+                    if let Some(win) = calendar_alone.upgrade() {
+                        win.present_add_account(Opening::Calendar);
                     }
                 },
             );
@@ -1211,6 +1216,17 @@ impl MainWindow {
         };
         self.stack.set_visible_child_name(page);
         let live: HashSet<AccountId> = data.iter().map(|(a, _)| a.id).collect();
+        // Any account can need to sign in again, a calendar account too.
+        let reauth = data
+            .iter()
+            .map(|(a, _)| a)
+            .find(|a| a.state == AccountState::NeedsReauth)
+            .cloned();
+        // A calendar account has no mailboxes, so the mail sidebar and
+        // everything worded by what the accounts offer for mail is built
+        // from the accounts that have mail. The calendar lists every
+        // account, so the others are kept aside for it.
+        let (data, calendar_accounts): (Vec<_>, Vec<_>) = data.into_iter().partition(|(a, _)| a.provider.serves_mail());
         self.listing.accounts_live(&live);
         // A label deleted elsewhere, by the assistant or in the browser,
         // leaves the window on a mailbox that is no longer there, so the
@@ -1274,12 +1290,7 @@ impl MainWindow {
         self.follow_gates();
         self.list
             .set_show_accounts(mailbox.account().is_none() && data.len() > 1);
-        let reauth: Vec<&Account> = data
-            .iter()
-            .filter(|(a, _)| a.state == AccountState::NeedsReauth)
-            .map(|(a, _)| a)
-            .collect();
-        match reauth.first() {
+        match &reauth {
             Some(account) => {
                 let through_browser = self
                     .app
@@ -1310,9 +1321,12 @@ impl MainWindow {
         // app.reload_accounts already read every account's consent in the
         // same pass as the accounts themselves, so this costs no round
         // trip of its own and settles with everything else above.
-        let accounts: Vec<Account> = data.iter().map(|(a, _)| a.clone()).collect();
+        let mut accounts: Vec<Account> = data.iter().map(|(a, _)| a.clone()).collect();
         self.rebuild_grant_banners(&accounts, &app.consent());
         self.rebuild_storage_banners();
+        // The mail accounts in the sidebar's order, then the calendar
+        // accounts, which the mail sidebar has no place for.
+        accounts.extend(calendar_accounts.into_iter().map(|(account, _)| account));
         self.accounts_for_calendar(&accounts);
     }
 
@@ -1446,7 +1460,7 @@ impl MainWindow {
 
     /// The accounts a listing may read, in sidebar order.
     fn scope(&self) -> Scope {
-        Scope::over(self.accounts())
+        Scope::of_mail_accounts(&self.accounts())
     }
 
     /// The settings that change what the mailbox on screen lists.
@@ -1514,7 +1528,7 @@ impl MainWindow {
         if redraw.follow {
             let mailbox = self.shown();
             self.list
-                .set_show_accounts(mailbox.account().is_none() && self.accounts().len() > 1);
+                .set_show_accounts(mailbox.account().is_none() && self.mail_accounts().len() > 1);
             let accounts = self.accounts_of(&mailbox);
             self.word_buttons(&self.conversation, &mailbox, accounts);
             self.follow_outbox();
@@ -1821,7 +1835,7 @@ impl MainWindow {
     fn accounts_of(&self, mailbox: &Mailbox) -> Vec<AccountId> {
         match mailbox.account() {
             Some(id) => vec![id],
-            None => self.accounts().iter().map(|a| a.id).collect(),
+            None => self.mail_accounts().iter().map(|a| a.id).collect(),
         }
     }
 
@@ -2727,16 +2741,22 @@ impl MainWindow {
                         account_id,
                         which: crate::ui::Standard::Inbox,
                     };
+                    // The calendar shows when only calendar accounts were
+                    // here before this one.
+                    win.show_space(crate::settings::Space::Mail);
                     win.sidebar.select(&inbox);
                     win.show_mailbox(inbox);
                 }
                 Done::Grant(email) => win.grant(email),
+                Done::CalendarAdded => win.calendar_added(),
                 Done::SignedInAgain(account) => {
                     win.toast(&fill(
                         &gettext("{account} is signed in again."),
                         &[("account", &account.email)],
                     ));
-                    win.refresh_accounts(Reload::Yes);
+                    // A calendar account has no mail for the list to read
+                    // again.
+                    win.refresh_accounts(if account.provider.serves_mail() { Reload::Yes } else { Reload::No });
                     // A JMAP account may have signed in another way, through
                     // the browser or with an app password for its calendar,
                     // which changes the servers it can reach beside mail.
@@ -2748,9 +2768,27 @@ impl MainWindow {
         });
     }
 
+    /// A calendar account signed in. The accounts are read again, and
+    /// once they are the calendar shows and reads the new account's
+    /// calendars, rather than leaving them to the next tick.
+    fn calendar_added(self: &Rc<Self>) {
+        self.refresh_accounts(Reload::No);
+        let read = self.accounts_read.borrow().clone();
+        let win = Rc::clone(self);
+        glib::spawn_future_local(async move {
+            if let Some(read) = read {
+                read.await;
+            }
+            win.show_space(crate::settings::Space::Calendar);
+            if let Some(app) = win.app.upgrade() {
+                app.refresh_calendars();
+            }
+        });
+    }
+
     /// Signs `account` in again the way it signed in first: its
-    /// provider's page in the browser, or step 2 of Another Provider with
-    /// its servers.
+    /// provider's page in the browser, step 2 of Another Provider with
+    /// its servers, or the calendar page for a calendar account.
     fn sign_in_again(self: &Rc<Self>, account: Account) {
         match Browser::of(account.provider) {
             Some(browser) => self.sign_in_in_browser(browser, Some(account.email)),
@@ -2893,6 +2931,15 @@ impl MainWindow {
         self.app
             .upgrade()
             .map(|app| app.accounts())
+            .unwrap_or_default()
+    }
+
+    /// The accounts with mail: what a mailbox lists and what the mail
+    /// buttons are worded for. A calendar account is not among them.
+    fn mail_accounts(&self) -> Vec<Account> {
+        self.app
+            .upgrade()
+            .map(|app| app.mail_accounts())
             .unwrap_or_default()
     }
 
@@ -3389,7 +3436,12 @@ impl MainWindow {
             .upgrade()
             .is_some_and(|app| app.new_message(self.account_in_view(), ""));
         if !wrote {
-            self.toast(&gettext("Add an account first"));
+            // Calendar accounts alone have no mail to write from.
+            let lacking = match self.accounts().is_empty() {
+                true => gettext("Add an account first"),
+                false => gettext("Add a mail account first"),
+            };
+            self.toast(&lacking);
         }
     }
 
@@ -3589,6 +3641,7 @@ impl MainWindow {
         let Some(app) = self.app.upgrade() else {
             return;
         };
+        // Preferences puts each account on the pages that apply to it.
         let accounts = app.accounts();
         let weak = Rc::downgrade(self);
         super::preferences::present(
@@ -3768,7 +3821,7 @@ impl MainWindow {
     /// Shows the Keyboard Shortcuts window. Its label line says Move to
     /// folder when every account files mail in folders.
     fn show_shortcuts(&self) {
-        let offers: Vec<Offers> = self.accounts().iter().map(|a| self.offers(a.id)).collect();
+        let offers: Vec<Offers> = self.mail_accounts().iter().map(|a| self.offers(a.id)).collect();
         shortcuts::dialog(Filing::of(offers)).present(Some(&self.window));
     }
 

@@ -31,6 +31,21 @@ async fn a_principal_on_one_host_finds_its_home_on_another_of_the_same_domain() 
     let homes = client(&server).homes().await.unwrap();
     assert_eq!(homes.principal, "/1234567890/principal/");
     assert_eq!(homes.calendar.as_deref(), Some("https://p12-caldav.icloud.com:443/1234567890/calendars/"));
+    assert!(homes.addresses.is_empty(), "a principal that names no address has none");
+}
+
+#[tokio::test]
+async fn the_homes_name_the_addresses_the_principal_goes_by() {
+    let server = MockServer::start().await;
+    Mock::given(method("PROPFIND")).and(path("/"))
+        .respond_with(multistatus(fixture("icloud-principal.xml").replace("/1234567890/principal/", "/remote.php/dav/principals/users/robin/")))
+        .mount(&server).await;
+    Mock::given(method("PROPFIND")).and(path("/remote.php/dav/principals/users/robin/"))
+        .and(body_string_contains("calendar-user-address-set"))
+        .respond_with(multistatus(fixture("nextcloud-homes.xml"))).mount(&server).await;
+    let homes = client(&server).homes().await.unwrap();
+    assert_eq!(homes.addresses, ["robin@example.org"]);
+    assert!(homes.calendar.is_some_and(|home| home.ends_with("/remote.php/dav/calendars/robin/")));
 }
 
 #[tokio::test]
@@ -107,6 +122,24 @@ async fn an_answer_past_the_limit_is_refused_without_reading_it_whole() {
 }
 
 #[test]
+fn the_host_of_an_address_is_lower_case_and_alone() {
+    assert_eq!(mailrs_dav::host_of("https://Cloud.Example.org:8443/remote.php/dav/").as_deref(), Some("cloud.example.org"));
+    assert_eq!(mailrs_dav::host_of("https://robin@cloud.example.org/").as_deref(), Some("cloud.example.org"));
+    assert_eq!(mailrs_dav::host_of("not an address"), None);
+    assert_eq!(mailrs_dav::host_of("mailto:me@example.org"), None);
+}
+
+#[test]
+fn one_server_is_one_scheme_host_port_and_path() {
+    let nextcloud = "https://home.example.org/remote.php/dav/";
+    assert!(mailrs_dav::same_address(nextcloud, "https://Home.Example.org/remote.php/dav"), "case of the host, and the last slash");
+    assert!(mailrs_dav::same_address("https://home.example.org/", "https://home.example.org:443/"), "the port https goes to anyway");
+    assert!(!mailrs_dav::same_address(nextcloud, "https://home.example.org:5232/"), "another port");
+    assert!(!mailrs_dav::same_address(nextcloud, "https://home.example.org/"), "another path");
+    assert!(!mailrs_dav::same_address("not an address", "not an address"));
+}
+
+#[test]
 fn a_plain_http_context_is_refused() {
     assert!(DavClient::new("http://dav.example.org/", Kind::Calendar, Login::new("me", "pw")).is_err());
 }
@@ -136,11 +169,22 @@ async fn the_dav_header_says_whether_the_server_schedules() {
     Mock::given(method("OPTIONS")).and(path("/"))
         .respond_with(ResponseTemplate::new(200).insert_header("DAV", "1, 3, calendar-access, calendar-auto-schedule"))
         .mount(&server).await;
-    assert!(client(&server).auto_schedule().await.unwrap());
+    assert!(client(&server).auto_schedule(None).await.unwrap());
     let plain = MockServer::start().await;
     Mock::given(method("OPTIONS"))
         .respond_with(ResponseTemplate::new(200).insert_header("DAV", "1, calendar-access")).mount(&plain).await;
-    assert!(!client(&plain).auto_schedule().await.unwrap());
+    assert!(!client(&plain).auto_schedule(None).await.unwrap());
+
+    // Nextcloud says that it schedules on its calendars, and not at the
+    // address a person types for it.
+    let nextcloud = MockServer::start().await;
+    Mock::given(method("OPTIONS")).and(path("/remote.php/dav/calendars/robin/personal/"))
+        .respond_with(ResponseTemplate::new(200).insert_header("DAV", "1, 3, calendar-access, calendar-auto-schedule"))
+        .mount(&nextcloud).await;
+    Mock::given(method("OPTIONS")).and(path("/"))
+        .respond_with(ResponseTemplate::new(200).insert_header("DAV", "1, 3, nc-paginate")).mount(&nextcloud).await;
+    assert!(!client(&nextcloud).auto_schedule(None).await.unwrap());
+    assert!(client(&nextcloud).auto_schedule(Some("/remote.php/dav/calendars/robin/personal/")).await.unwrap());
 }
 
 #[tokio::test]
@@ -175,7 +219,7 @@ fn every_future_a_trait_method_returns_is_send() {
         is_send(d.put("/a", "", Kind::Calendar, Precondition::NoneMatch));
         is_send(d.delete("/a", None));
         is_send(d.find_uid("/", "u"));
-        is_send(d.auto_schedule());
+        is_send(d.auto_schedule(None));
     }
     let _ = check::<DavClient>;
     let _ = check::<mailrs_dav::fake::FakeDav>;

@@ -27,6 +27,12 @@ pub struct FakeState {
     pub forgotten_below: u64,
     pub no_sync: bool,
     pub auto_schedule: bool,
+    /// The server says that it schedules on its calendars and not at its
+    /// own address, as Nextcloud does.
+    pub quiet_at_its_address: bool,
+    /// The server answers 401 when asked whether it schedules, though it
+    /// takes the login for everything else.
+    pub refuse_options: bool,
     pub offline: bool,
     pub refuse_login: bool,
     pub puts: usize,
@@ -36,6 +42,10 @@ pub struct FakeState {
     pub always_more: bool,
     /// How many `sync-collection` reports were asked.
     pub syncs: usize,
+    /// The addresses the principal goes by.
+    pub addresses: Vec<String>,
+    /// How many times the homes were asked.
+    pub homes: usize,
 }
 
 #[derive(Default)]
@@ -176,8 +186,10 @@ impl FakeDav {
 
 impl DavApi for FakeDav {
     async fn homes(&self) -> Result<Homes, DavError> {
-        drop(self.open()?);
-        Ok(Homes { principal: "/principal/".into(), calendar: Some("/cal/".into()), addressbook: Some("/card/".into()) })
+        let mut state = self.open()?;
+        state.homes += 1;
+        let addresses = state.addresses.clone();
+        Ok(Homes { principal: "/principal/".into(), calendar: Some("/cal/".into()), addressbook: Some("/card/".into()), addresses })
     }
 
     async fn collections(&self, home: &str, kind: Kind) -> Result<Vec<Collection>, DavError> {
@@ -308,8 +320,12 @@ impl DavApi for FakeDav {
             .map(|(href, (etag, body))| Fetched { href: href.clone(), etag: etag.clone(), body: body.clone() }))
     }
 
-    async fn auto_schedule(&self) -> Result<bool, DavError> {
-        Ok(self.open()?.auto_schedule)
+    async fn auto_schedule(&self, at: Option<&str>) -> Result<bool, DavError> {
+        let state = self.open()?;
+        if state.refuse_options {
+            return Err(DavError::Unauthorized);
+        }
+        Ok(state.auto_schedule && (at.is_some() || !state.quiet_at_its_address))
     }
 
     fn host(&self) -> &str {
@@ -322,6 +338,14 @@ mod tests {
     use super::*;
 
     const EVENT: &str = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:u\r\nDTSTART:20261101T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    #[tokio::test]
+    async fn the_homes_name_the_addresses_a_test_gave() {
+        let dav = FakeDav::new();
+        assert!(dav.homes().await.unwrap().addresses.is_empty());
+        dav.with(|s| s.addresses = vec!["me@example.org".into()]);
+        assert_eq!(dav.homes().await.unwrap().addresses, ["me@example.org"]);
+    }
 
     #[tokio::test]
     async fn a_sync_after_a_change_elsewhere_names_that_change_alone() {
@@ -370,8 +394,11 @@ mod tests {
     #[tokio::test]
     async fn the_server_schedules_only_when_told_to() {
         let dav = FakeDav::new();
-        assert!(!dav.auto_schedule().await.unwrap());
+        assert!(!dav.auto_schedule(None).await.unwrap());
         dav.set_auto_schedule(true);
-        assert!(dav.auto_schedule().await.unwrap());
+        assert!(dav.auto_schedule(None).await.unwrap());
+        dav.with(|s| s.quiet_at_its_address = true);
+        assert!(!dav.auto_schedule(None).await.unwrap());
+        assert!(dav.auto_schedule(Some("/cal/work/")).await.unwrap());
     }
 }

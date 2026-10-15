@@ -30,13 +30,17 @@ fn the_client_speaks_caldav_and_carddav_to_radicale() {
         let client = DavClient::new(&radicale.url(), Kind::Calendar, Login::new(USER, &password)).expect("a client");
         let homes = client.homes().await.expect("the homes");
         let home = homes.calendar.expect("a calendar home");
+        // Radicale schedules nothing, so it names no address the principal
+        // is invited by. A missing property is an empty list, not an error.
+        assert!(homes.addresses.is_empty(), "{:?}", homes.addresses);
         let found = client.collections(&home, Kind::Calendar).await.expect("the calendars");
         let work = found.iter().find(|c| c.href.ends_with(&calendar)).unwrap_or_else(|| panic!("{found:?}"));
         assert!(work.sync, "Radicale answers sync-collection");
 
         // Radicale does no scheduling, so its DAV header lacks
         // calendar-auto-schedule and the app sends the reply itself.
-        assert!(!client.auto_schedule().await.expect("the DAV header"));
+        assert!(!client.auto_schedule(None).await.expect("the DAV header"));
+        assert!(!client.auto_schedule(Some(&calendar)).await.expect("the calendar's DAV header"));
 
         let first = client.sync(&calendar, "").await.expect("a first sync");
         let href = format!("{calendar}e1.ics");

@@ -270,7 +270,7 @@ async fn remove_account(db: &Db, email: &str) -> Result<()> {
             Provider::Gmail => format!(
                 "Removed {email}. Revoke Google's side at https://myaccount.google.com/permissions if you want."
             ),
-            Provider::Imap | Provider::Pop3 | Provider::Jmap => format!("Removed {email} and its password or token."),
+            Provider::Imap | Provider::Pop3 | Provider::Jmap | Provider::CalDav => format!("Removed {email} and its password or token."),
             Provider::Microsoft => format!(
                 "Removed {email} and its sign-in. Revoke Microsoft's side at https://account.live.com/consent/Manage if you want."
             ),
@@ -291,20 +291,27 @@ async fn run_sync(db: &Db, dir: &Path, config: &Config) -> Result<()> {
         ),
         Err(err) => return Err(err.into()),
     };
-    let all = db.read(accounts::list_accounts).await?;
+    // This command syncs mail, so a calendar account, which has none,
+    // is left to the app.
+    let all = mailrs_domain::mail_accounts(&db.read(accounts::list_accounts).await?);
     if all.is_empty() {
-        bail!("no accounts; run `penguin-mail-cli account add` first");
+        bail!("no mail accounts; run `penguin-mail-cli account add` first");
     }
     let (engine, events) = SyncEngine::new(db.clone(), config.engine_config());
     let connector = connector(db, config);
+    // An account that could not connect said so above and is not syncing.
+    let mut started = 0;
     for account in &all {
         match connect(&connector, account).await {
-            Ok(services) => engine.start_account(account.id, services),
+            Ok(services) => {
+                engine.start_account(account.id, services);
+                started += 1;
+            }
             Err(err) => eprintln!("{err}"),
         }
     }
     let emails: HashMap<AccountId, String> = all.iter().map(|a| (a.id, a.email.clone())).collect();
-    println!("Syncing {} account(s). Press Ctrl-C to stop.", all.len());
+    println!("Syncing {started} account(s). Press Ctrl-C to stop.");
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,

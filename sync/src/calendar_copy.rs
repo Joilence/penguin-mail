@@ -28,13 +28,13 @@ use std::sync::{Arc, Mutex};
 use mailrs_domain::calendar::series::{self, Picked, RepeatScope, Step};
 use mailrs_domain::calendar::{self, Access, Calendar, Event, Notify, Occurrence};
 use mailrs_domain::translate::{fill, gettext};
-use mailrs_domain::{AccountId, EpochMillis};
+use mailrs_domain::{AccountId, AccountState, EpochMillis};
 use mailrs_store::Db;
 use mailrs_store::calendar as store;
 
 use crate::calendar_reach::missing_range;
 use crate::settings::Permitted;
-use crate::{Accounts, AnyCalendar, BackendError, CalendarService, SyncError};
+use crate::{AccountServices, Accounts, AnyCalendar, BackendError, CalendarService, SyncError};
 
 mod attach;
 pub mod event_change;
@@ -235,6 +235,14 @@ impl Drop for Release<'_> {
     }
 }
 
+/// Whether these are the services of a calendar account whose server
+/// refused its password. A mail account whose calendar server did still
+/// reads and sends as before: its mail works, and Preferences says why
+/// the calendar does not.
+fn awaits_sign_in(services: &AccountServices) -> bool {
+    !services.serves_mail() && services.calendar.as_ref().is_some_and(|calendar| calendar.login_refused().is_some())
+}
+
 impl<A: Accounts> CalendarCopy<A> {
     pub fn new(accounts: Arc<A>, db: Db) -> Self {
         CalendarCopy {
@@ -273,6 +281,17 @@ impl<A: Accounts> CalendarCopy<A> {
         self.last_read.lock().expect("copy poisoned").remove(&account_id);
     }
 
+    /// Forgets all this run kept about a removed account: when it was
+    /// listed and read, from which kind of server, and what it was
+    /// refused. SQLite gives a removed account's id to the next account
+    /// added, which would otherwise wait out the old one's times with no
+    /// calendars to show.
+    pub fn forget(&self, account_id: AccountId) {
+        self.permission_changed(account_id);
+        self.listed_from.lock().expect("copy poisoned").remove(&account_id);
+        self.tried.lock().expect("copy poisoned").remove(&account_id);
+    }
+
     /// Whether the account turned out to lack the calendar permission less
     /// than [`LIST_EVERY`] ago, so asking again would only spend a call on
     /// a refusal.
@@ -302,7 +321,16 @@ impl<A: Accounts> CalendarCopy<A> {
         for &account_id in accounts {
             // An account still starting, signed out or just removed has
             // nothing to read with, and the app ticks every 15 seconds.
-            if self.accounts.services(account_id).is_none() {
+            let Some(services) = self.accounts.services(account_id) else {
+                continue;
+            };
+            // A calendar account whose server refused its password would
+            // be refused again at every tick. It waits for the person to
+            // sign in again, which starts it on new services. Whatever
+            // met the refusal, a read, the queue or a change the person
+            // made, the account says so here.
+            if awaits_sign_in(&services) {
+                self.report(account_id, AccountState::NeedsReauth).await;
                 continue;
             }
             // Queued changes go out before the account is read, so an
@@ -348,7 +376,31 @@ impl<A: Accounts> CalendarCopy<A> {
         };
         // Nobody waits on a refresh; it runs behind the person's own
         // calls.
-        crate::background(self.refresh_calendars(&calendar, account_id, now)).await
+        let read = crate::background(self.refresh_calendars(&calendar, account_id, now)).await;
+        // A mail account's loop says how the account is doing. A calendar
+        // account has no loop, and this read is what spoke to its server.
+        match self.accounts.services(account_id).filter(|services| !services.serves_mail()) {
+            Some(services) if awaits_sign_in(&services) => self.report(account_id, AccountState::NeedsReauth).await,
+            Some(_) if read.is_ok() => self.report(account_id, AccountState::Ok).await,
+            _ => {}
+        }
+        read
+    }
+
+    /// Records how a calendar account is doing, once: nothing is written
+    /// while the store already says so, since the tick comes every
+    /// fifteen seconds.
+    async fn report(&self, account_id: AccountId, state: AccountState) {
+        let Some(sync) = self.accounts.account(account_id) else {
+            return;
+        };
+        let held = self.db.read(move |c| mailrs_store::accounts::account(c, account_id)).await;
+        if matches!(held, Ok(Some(account)) if account.state == state) {
+            return;
+        }
+        if let Err(err) = sync.set_state(state).await {
+            tracing::warn!(account = account_id, %err, "could not record how the calendar account is doing");
+        }
     }
 
     /// Reads the account's calendars now when the copy has never read

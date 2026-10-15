@@ -21,6 +21,50 @@ pub fn withheld_for(services: Option<&AccountServices>) -> Withheld {
     services.map_or(Withheld::NONE, AccountServices::withheld)
 }
 
+/// Whether an answer to an invitation on the account, whose provider is
+/// `provider`, reaches its organizer. A calendar account's server says
+/// whether it sends replies only once it has been read, so the event
+/// popover asks each time it opens; until the account has started, and
+/// until its server has said, nobody is taken to hear. An account with
+/// mail that is not running yet sends the reply once it starts. An
+/// account the window does not know (`None`) is not said to be mute.
+pub fn organizer_hears(provider: Option<Provider>, services: Option<&AccountServices>) -> bool {
+    match services {
+        Some(services) => services.tells_organizer(),
+        None => provider.is_none_or(Provider::serves_mail),
+    }
+}
+
+/// Whether the account served by `provider` can propose another time for
+/// a meeting. A proposal goes to the organizer as mail, whatever the
+/// calendar's server does, and a calendar account has none to send,
+/// running or not. An account with mail that is not running yet is not
+/// held back, nor is one the window does not know.
+pub fn can_propose(provider: Option<Provider>, services: Option<&AccountServices>) -> bool {
+    match services {
+        Some(services) => services.serves_mail(),
+        None => provider.is_none_or(Provider::serves_mail),
+    }
+}
+
+/// Whether the window has accounts and none of them has mail. It then
+/// shows the calendar and offers no switch to a mail space that would be
+/// empty. No account at all is the first-run page instead.
+pub fn only_calendars(accounts: &[Account]) -> bool {
+    !accounts.is_empty() && accounts.iter().all(|account| !account.provider.serves_mail())
+}
+
+/// Whether the window may show `space`. With calendar accounts alone the
+/// calendar is the one space there is, shown though no switch offers it,
+/// and there is no mail to show. Otherwise the calendar shows only while
+/// the switch does.
+pub fn may_show(space: crate::settings::Space, switch_visible: bool, accounts: &[Account]) -> bool {
+    match space {
+        crate::settings::Space::Mail => !only_calendars(accounts),
+        crate::settings::Space::Calendar => only_calendars(accounts) || switch_visible,
+    }
+}
+
 /// Whether the sidebar offers the Mail / Calendar switch. `started` holds
 /// what each running account offers; `waiting` says some account has not
 /// started yet. Once one running account offers a calendar the switch
@@ -593,7 +637,8 @@ pub fn failing_lines(failing: &[Failing]) -> Vec<String> {
         .collect()
 }
 
-/// What Remove Account's confirmation says happens to `account`'s mail.
+/// What Remove Account's confirmation says happens to `account`'s mail,
+/// or to a calendar account's calendars.
 /// `remove` is a POP3 account's removal setting. Under one that removes
 /// mail from the server, the server has let go of what came down, so
 /// removing the account loses it.
@@ -607,6 +652,10 @@ pub fn remove_account_body(account: &Account, remove: RemoveSetting) -> String {
             "Mail already removed from the server exists only on this computer, \
              and removing the account deletes it with the saved sign-in. Mail \
              still on the server stays there.",
+        ),
+        (Provider::CalDav, _) => gettext(
+            "Its calendars and saved sign-in are deleted from this computer. \
+             Nothing changes on the server.",
         ),
         _ => fill(
             &gettext(
@@ -988,6 +1037,76 @@ mod tests {
                 )
             );
         }
+    }
+
+    fn calendar_account() -> Account {
+        Account {
+            id: 7,
+            email: "robin@cloud.example.org".into(),
+            state: AccountState::Ok,
+            provider: Provider::CalDav,
+            provider_name: None,
+        }
+    }
+
+    /// A calendar account's server says whether it sends replies once
+    /// its calendars are read, which is after the window read what the
+    /// account offers.
+    #[tokio::test]
+    async fn whether_the_organizer_hears_is_read_from_the_services_as_they_stand() {
+        use mailrs_sync::fake::{DavKind, FakeDav};
+        use mailrs_sync::{AccountServices, CalendarService};
+
+        let dav = std::sync::Arc::new(FakeDav::new());
+        dav.add_collection("/cal/personal/", DavKind::Calendar, "Personal", None);
+        dav.set_auto_schedule(true);
+        let services = AccountServices::calendar_only(std::sync::Arc::clone(&dav));
+
+        let calendars = Some(Provider::CalDav);
+        assert!(!super::organizer_hears(calendars, None), "a calendar account that has not started is not heard");
+        assert!(super::organizer_hears(Some(Provider::Imap), None), "an account with mail sends the reply once it starts");
+        assert!(!super::organizer_hears(calendars, Some(&services)), "a server that has not said it sends replies is taken to send none");
+        services.calendar.as_ref().expect("the calendar").calendars().await.expect("the calendar list");
+        assert!(super::organizer_hears(calendars, Some(&services)), "the server has said it sends them");
+    }
+
+    #[test]
+    fn a_proposal_needs_mail_to_carry_it() {
+        use mailrs_sync::AccountServices;
+        use mailrs_sync::fake::{FakeDav, FakeGmail};
+
+        let with_mail = AccountServices::google(std::sync::Arc::new(FakeGmail::new()));
+        let alone = AccountServices::calendar_only(std::sync::Arc::new(FakeDav::new()));
+        let calendars = Some(Provider::CalDav);
+        assert!(super::can_propose(Some(Provider::Gmail), Some(&with_mail)));
+        assert!(!super::can_propose(calendars, Some(&alone)), "a calendar account has no mail to send it");
+        assert!(!super::can_propose(calendars, None), "nor one that has not started");
+        assert!(super::can_propose(Some(Provider::Imap), None), "an account with mail that has not started is not held back");
+        assert!(super::can_propose(None, None), "nor one the window does not know");
+    }
+
+    #[test]
+    fn a_window_with_calendar_accounts_alone_has_no_mail_to_show() {
+        use crate::settings::Space;
+
+        assert!(super::only_calendars(&[calendar_account()]));
+        assert!(!super::only_calendars(&[calendar_account(), pop3_account()]));
+        assert!(!super::only_calendars(&[]), "no account at all is the first-run page's business");
+
+        let switch_hidden = false;
+        let (calendars_alone, with_mail) = ([calendar_account()], [calendar_account(), pop3_account()]);
+        assert!(super::may_show(Space::Calendar, switch_hidden, &calendars_alone), "it is all there is");
+        assert!(!super::may_show(Space::Mail, switch_hidden, &calendars_alone), "a shortcut must not open an empty mail window");
+        assert!(super::may_show(Space::Mail, switch_hidden, &with_mail));
+        assert!(!super::may_show(Space::Calendar, switch_hidden, &with_mail), "no account offers a calendar");
+        assert!(super::may_show(Space::Calendar, true, &with_mail));
+    }
+
+    #[test]
+    fn removing_a_calendar_account_speaks_of_calendars_not_mail() {
+        let body = remove_account_body(&calendar_account(), RemoveSetting::Never);
+        assert!(body.contains("calendars"), "{body}");
+        assert!(!body.contains("mail"), "{body}");
     }
 
     #[test]

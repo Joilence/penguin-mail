@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::UnknownVariant;
 
-/// The company or protocol that serves an account's mail.
+/// The company or protocol that serves an account's mail, or, for the
+/// one provider that serves none, its calendars.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Provider {
     #[default]
@@ -27,11 +28,14 @@ pub enum Provider {
     /// A server that speaks JMAP (RFC 8620, RFC 8621) for mail. Who runs it,
     /// such as Fastmail or Stalwart, is the account's provider name.
     Jmap,
+    /// A CalDAV server on its own: calendars and no mail. The account is
+    /// named for its user on its host rather than by a mail address.
+    CalDav,
 }
 
 impl Provider {
-    pub const ALL: [Provider; 5] =
-        [Provider::Gmail, Provider::Imap, Provider::Microsoft, Provider::Pop3, Provider::Jmap];
+    pub const ALL: [Provider; 6] =
+        [Provider::Gmail, Provider::Imap, Provider::Microsoft, Provider::Pop3, Provider::Jmap, Provider::CalDav];
 
     /// The stored form, in `accounts.provider`.
     pub fn as_str(self) -> &'static str {
@@ -41,6 +45,7 @@ impl Provider {
             Provider::Microsoft => "microsoft",
             Provider::Pop3 => "pop3",
             Provider::Jmap => "jmap",
+            Provider::CalDav => "caldav",
         }
     }
 
@@ -54,7 +59,15 @@ impl Provider {
             Provider::Microsoft => "Microsoft",
             Provider::Pop3 => "POP3",
             Provider::Jmap => "JMAP",
+            Provider::CalDav => "CalDAV",
         }
+    }
+
+    /// Whether an account of this provider has mail. A CalDAV account
+    /// has none, so it is listed with the calendars and nowhere mail
+    /// is: not in the mail sidebar, the From list or a search.
+    pub fn serves_mail(self) -> bool {
+        self != Provider::CalDav
     }
 }
 
@@ -342,6 +355,15 @@ mod tests {
         assert_eq!("jmap".parse::<Provider>().unwrap(), Provider::Jmap);
         assert_eq!(Provider::Jmap.name(), "JMAP");
         assert!(Provider::ALL.contains(&Provider::Jmap));
+    }
+
+    #[test]
+    fn caldav_is_stored_and_read_back_and_is_the_one_provider_with_no_mail() {
+        assert_eq!(Provider::CalDav.as_str(), "caldav");
+        assert_eq!("caldav".parse::<Provider>().unwrap(), Provider::CalDav);
+        assert_eq!(Provider::CalDav.name(), "CalDAV");
+        let without_mail: Vec<Provider> = Provider::ALL.into_iter().filter(|p| !p.serves_mail()).collect();
+        assert_eq!(without_mail, [Provider::CalDav]);
     }
 
     #[test]

@@ -374,6 +374,10 @@ impl Secrets {
                     clients.delete(id)
                 })
             }
+            Provider::CalDav => {
+                let passwords = Arc::clone(&self.passwords);
+                Box::new(move || passwords.delete(id))
+            }
             Provider::Imap | Provider::Pop3 => {
                 // A switch to JMAP that stopped between saving its secret
                 // and the swap leaves that secret under this id.
