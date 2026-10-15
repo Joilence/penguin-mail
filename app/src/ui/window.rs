@@ -1076,6 +1076,18 @@ impl MainWindow {
         self.window.is_active() && self.window.is_visible()
     }
 
+    /// The conversation the person is looking at: the one on screen while
+    /// the window has focus. `None` while the window is unfocused or
+    /// hidden, shows no conversation, or keeps one open behind the
+    /// Calendar space or a narrow window's list, where its page is not
+    /// mapped.
+    pub fn viewed(&self) -> Option<Target> {
+        if !self.is_active() || !self.conversation.page.is_mapped() {
+            return None;
+        }
+        self.conversation.read(OpenThread::target)
+    }
+
     /// Shows where an update stands, or hides the banner when nothing does.
     /// Each state's button runs an app action, so the banner needs no
     /// callbacks of its own.

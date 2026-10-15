@@ -425,3 +425,23 @@ fn sent_copies_are_found_by_message_id_in_either_spelling() {
     assert!(found("r1@example.com").is_empty(), "mail that came in is not Sent");
     assert!(found("nobody@example.com").is_empty());
 }
+
+/// What a notification still waits on: mail unread and in the Inbox. A
+/// read message, one filed out of the Inbox, and one the store lost all
+/// drop out, in one query over the ids asked.
+#[test]
+fn unread_in_inbox_keeps_only_the_mail_still_waiting_to_be_read() {
+    let (conn, id) = db();
+    store(
+        &conn,
+        &[
+            meta(id, "a", "t1", 100, &["INBOX", "UNREAD"]),
+            meta(id, "b", "t2", 200, &["INBOX"]),
+            meta(id, "c", "t3", 300, &["UNREAD"]),
+            meta(id, "d", "t4", 400, &["INBOX", "UNREAD"]),
+        ],
+    );
+    let asked: Vec<String> = ["a", "b", "c", "gone"].iter().map(|s| s.to_string()).collect();
+    let still = messages::unread_in_inbox(&conn, id, &asked).unwrap();
+    assert_eq!(still, HashSet::from(["a".to_string()]), "only what was asked, and only unread Inbox mail");
+}
