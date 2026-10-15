@@ -851,53 +851,53 @@ msgstr "Your preferences could not be read, so Penguin Mail started from the def
 msgid "That account is not connected. Check its status in the sidebar."
 msgstr "That account is not connected. Check its status in the sidebar."
 
-#: app/src/app/sending.rs:129 app/src/app/sending.rs:165
+#: app/src/app/sending.rs:129 app/src/app/sending.rs:164
 msgid "Could not build the message: {reason}"
 msgstr "Could not build the message: {reason}"
 
-#: app/src/app/sending.rs:186 app/src/app/sending.rs:238
+#: app/src/app/sending.rs:185 app/src/app/sending.rs:237
 msgid "Not encrypted, so not sent: {reason}"
 msgstr "Not encrypted, so not sent: {reason}"
 
-#: app/src/app/sending.rs:239
+#: app/src/app/sending.rs:238
 msgid "Not signed, so not sent: {reason}"
 msgstr "Not signed, so not sent: {reason}"
 
-#: app/src/app/sending.rs:267 app/src/app/sending.rs:291
-#: app/src/app/sending.rs:296
+#: app/src/app/sending.rs:266 app/src/app/sending.rs:290
+#: app/src/app/sending.rs:295
 msgid "Not sent: {reason}"
 msgstr "Not sent: {reason}"
 
-#: app/src/app/sending.rs:278
+#: app/src/app/sending.rs:277
 msgid "Message sent"
 msgstr "Message sent"
 
-#: app/src/app/sending.rs:286
+#: app/src/app/sending.rs:285
 msgid "Waiting in the Outbox. It goes out as soon as it can."
 msgstr "Waiting in the Outbox. It goes out as soon as it can."
 
-#: app/src/app/sending.rs:321 app/src/app/sending.rs:332
-#: app/src/app/sending.rs:345
+#: app/src/app/sending.rs:320 app/src/app/sending.rs:328
+#: app/src/app/sending.rs:341
 msgid "Not scheduled: {reason}"
 msgstr "Not scheduled: {reason}"
 
-#: app/src/app/sending.rs:338
+#: app/src/app/sending.rs:334
 msgid "Will send {when}"
 msgstr "Will send {when}"
 
-#: app/src/app/sending.rs:396
+#: app/src/app/sending.rs:392
 msgid "Sent {message}"
 msgstr "Sent {message}"
 
-#: app/src/app/sending.rs:405
+#: app/src/app/sending.rs:401
 msgid "Still in the Outbox: {message}"
 msgstr "Still in the Outbox: {message}"
 
-#: app/src/app/sending.rs:513
+#: app/src/app/sending.rs:509
 msgid "your message"
 msgstr "your message"
 
-#: app/src/app/sending.rs:515
+#: app/src/app/sending.rs:511
 msgid "“{subject}”"
 msgstr "“{subject}”"
 
