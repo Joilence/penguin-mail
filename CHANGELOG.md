@@ -20,6 +20,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
+- The Snap package finds libproxy's backend when it starts, avoiding the missing libpxbackend-1.0.so error.
 - A new-mail notification leaves the notification center once its message is read, archived or deleted, in the window or on another device. A summary of several messages leaves once every one of them has.
 - Mail that arrived while Penguin Mail was closed gets its notifications when the app opens.
 - An account removed and added again shows its calendars at once, rather than half an hour later.

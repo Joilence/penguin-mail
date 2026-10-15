@@ -169,6 +169,8 @@ jobs:
       # there because an edit dropped this file's executable bit.
       - name: The snap's launcher is executable
         run: test -x snap/local/launcher
+      - name: The snap finds libproxy's backend
+        run: python3 scripts/test-snap-launcher.py
       - name: Every control has an accessible name
         run: scripts/a11y-names.sh
 
