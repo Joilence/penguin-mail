@@ -57,6 +57,75 @@ mod tests {
         assert_eq!(ids, ["a", "c"], "oldest first, and nothing the store lost");
     }
 
+    /// The announcement reads its snapshot, then the mail is read on
+    /// another device and the change event arrives before the
+    /// notification registers, so it finds nothing to settle. The
+    /// notification then goes out from the stale snapshot. The second
+    /// look `announce_found` takes after registering is what withdraws
+    /// it. Each step here is the production piece the app runs.
+    #[tokio::test]
+    async fn a_read_landing_while_the_announcement_is_pending_settles_at_the_second_look() {
+        use crate::notify::{self, Issued};
+        use mailrs_domain::mailbox::keyword;
+        use mailrs_domain::{MailboxKind, Membership, RemoteMailbox, Role};
+        use mailrs_store::messages::{Change, apply, unread_in_inbox};
+        use mailrs_sync::fake::meta;
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = mailrs_store::Db::open(&dir.path().join("mail.db")).unwrap();
+        let account_id = db
+            .write(|c| {
+                let account_id = mailrs_store::accounts::insert_account(c, "me@example.com", 0)?;
+                mailrs_store::mailboxes::upsert(
+                    c,
+                    account_id,
+                    &RemoteMailbox {
+                        id: "INBOX".into(),
+                        name: "INBOX".into(),
+                        kind: MailboxKind::System,
+                        role: Some(Role::Inbox),
+                        color: None,
+                        hidden: false,
+                    },
+                )?;
+                let mut m = meta("m", "t", 1, &["INBOX", "UNREAD"]);
+                m.account_id = account_id;
+                apply(c, account_id, &[Change::Upsert { meta: Box::new(m), generation: 1 }])?;
+                Ok(account_id)
+            })
+            .await
+            .unwrap();
+        let asked = vec!["m".to_string()];
+        let snapshot = db.read(move |c| announced(c, account_id, &asked)).await.unwrap();
+        assert!(snapshot[0].is_unread(), "the snapshot the announcement works from");
+
+        db.write(move |c| {
+            apply(c, account_id, &[Change::of("m", Membership::Keyword(keyword::SEEN.into()), true)])
+        })
+        .await
+        .unwrap();
+        let mut issued = Issued::default();
+        assert!(
+            issued.in_threads(account_id, &["t".to_string()]).is_empty(),
+            "the change event arrives before the notification registers"
+        );
+
+        for notice in notify::notices(snapshot, true, vec![]) {
+            issued.issue("token".into(), notice.target.unwrap(), notice.buttons);
+        }
+        let asked = issued.in_threads(account_id, &["t".to_string()]);
+        let (token, ids) = asked.into_iter().next().expect("the notification waits on the message");
+        let still = db
+            .read(move |c| unread_in_inbox(c, account_id, &ids))
+            .await
+            .unwrap();
+        let asked = issued.in_threads(account_id, &["t".to_string()]);
+        assert!(
+            issued.settle(&token, &notify::settled_among(&asked[0].1, &still)),
+            "the second look withdraws it"
+        );
+    }
+
     #[test]
     fn mail_in_the_conversation_on_screen_is_not_announced() {
         use crate::assistant::run::fake::meta;

@@ -1503,7 +1503,7 @@ impl App {
                 .read(move |c| announced(c, account_id, &message_ids))
                 .await
             {
-                Ok(found) => this.announce_found(found),
+                Ok(found) => this.announce_found(account_id, found),
                 Err(err) => {
                     tracing::warn!(account = account_id, %err, "could not read the mail behind a notification")
                 }
@@ -1625,7 +1625,7 @@ impl App {
                 .read(move |c| announced(c, account_id, &message_ids))
                 .await
             {
-                Ok(found) => this.announce_found(found),
+                Ok(found) => this.announce_found(account_id, found),
                 Err(err) => {
                     tracing::warn!(account = account_id, %err, "could not read the mail behind a notification")
                 }
@@ -1633,8 +1633,16 @@ impl App {
         });
     }
 
-    /// Announces the new mail among `found`, as the store holds it now.
-    fn announce_found(&self, mut found: Vec<mailrs_domain::MessageMeta>) {
+    /// Announces the new mail among `found`, as the store held it when
+    /// read, then asks the store again for the threads announced. Mail
+    /// read elsewhere between that read and the notifications
+    /// registering had its change event arrive with nothing to settle,
+    /// and this second look is what withdraws its notification.
+    fn announce_found(
+        self: &Rc<Self>,
+        account_id: AccountId,
+        mut found: Vec<mailrs_domain::MessageMeta>,
+    ) {
         let settings = self.settings();
         if self.core.demo || !settings.notifications {
             return;
@@ -1652,13 +1660,21 @@ impl App {
                     || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email)))
                 && !in_view(m, viewed.as_ref())
         });
-        if !found.is_empty() {
-            self.announce_mail(
-                found,
-                settings.notification_previews,
-                settings.notification_buttons.clone(),
-            );
+        if found.is_empty() {
+            return;
         }
+        let threads: Vec<String> = found
+            .iter()
+            .map(|m| m.thread_id.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        self.announce_mail(
+            found,
+            settings.notification_previews,
+            settings.notification_buttons.clone(),
+        );
+        self.settle_notifications(account_id, &threads);
     }
 
     /// Registers the tray icon whenever a tray host appears on the session
