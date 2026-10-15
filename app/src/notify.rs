@@ -329,9 +329,10 @@ impl Issued {
         let Some(shown) = self.shown.get_mut(token) else {
             return false;
         };
+        let settled: HashSet<&str> = settled.iter().map(String::as_str).collect();
         shown
             .pending
-            .retain(|(_, message_id)| !settled.contains(message_id));
+            .retain(|(_, message_id)| !settled.contains(message_id.as_str()));
         if !shown.pending.is_empty() {
             return false;
         }
