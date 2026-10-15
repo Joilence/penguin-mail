@@ -157,6 +157,9 @@ impl App {
         let opened = Settings::open(&settings_path);
         let counted_by = Rc::clone(&core);
         let storage = storage::ServerSpace::new(storage::CoreStorage(Rc::clone(&core)));
+        let app_id = gio_app
+            .application_id()
+            .map_or_else(|| crate::APP_ID.to_string(), |id| id.to_string());
         let app = Rc::new(App {
             gio: gio_app.clone(),
             core,
@@ -181,7 +184,7 @@ impl App {
             pending_file: RefCell::new(calendar_file),
             tray_started: Cell::new(false),
             unread: Unread::new(CoreCounts(counted_by)),
-            dock_badge: dock_badge::Badge::default(),
+            dock_badge: dock_badge::Badge::new(&app_id),
             asked_to_replace: RefCell::default(),
             settings: RefCell::new(Settings {
                 // The demo's contacts are already in its throwaway store,
@@ -216,11 +219,13 @@ impl App {
         // no-op.
         let weak = Rc::downgrade(&app);
         gio_app.connect_shutdown(move |_| {
-            if let Some(app) = weak.upgrade()
-                && let Some(window) = app.window()
-            {
+            let Some(app) = weak.upgrade() else { return };
+            if let Some(window) = app.window() {
                 window.calendar.commit_all_now();
             }
+            // A Linux dock keeps the last count it heard, so the badge
+            // would outlive the app.
+            app.dock_badge.hide_now();
         });
         // The tray is a D-Bus service of Linux desktops. macOS has no
         // session bus, and GIO answers a watch on it with a vanished

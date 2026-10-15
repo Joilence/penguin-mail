@@ -8,6 +8,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 ### New
 
 - Vietnamese translations, chosen in Preferences.
+- The unread count sits on the app icon in Linux docks that draw badges, such as Dash to Dock, Ubuntu Dock, Dash to Panel and KDE Plasma, matching the tray.
 
 ### Improved
 
