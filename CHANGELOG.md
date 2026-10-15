@@ -19,6 +19,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 ### Fixed
 
 - A new-mail notification leaves the notification center once its message is read, archived or deleted, in the window or on another device. A summary of several messages leaves once every one of them has.
+- Mail that arrived while Penguin Mail was closed gets its notifications when the app opens.
 - Server-space reports update as each account answers, keep newer results when reads overlap, and refresh while the mail window is closed.
 - Switching AI providers keeps web search matched to the selected provider.
 - Files picked with the assistant's Attach button work through Flatpak and in hidden folders. Tool and model switches keep the conversation, model menus reuse recent lists without search-data tooltips, and screen readers hear turn status.

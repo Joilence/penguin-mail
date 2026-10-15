@@ -1,10 +1,20 @@
 //! Which new mail a notification names, and which still deserves one
-//! once the local rules ran.
+//! once the local rules ran and the window has been looked at.
+
+use mailrs_domain::{MessageMeta, Target};
 
 /// Whether new mail still deserves its notification once the rules ran:
 /// still in the Inbox and still unread.
 pub(crate) fn still_news(in_inbox: bool, unread: bool) -> bool {
     in_inbox && unread
+}
+
+/// Whether `meta` is in the conversation on screen, `viewed`: a
+/// notification about it would only repeat what the window shows. Only
+/// the account and thread count, since the thread is on screen whether
+/// the view shows all of it or one message.
+pub(crate) fn in_view(meta: &MessageMeta, viewed: Option<&Target>) -> bool {
+    viewed.is_some_and(|t| t.account_id == meta.account_id && t.thread_id == meta.thread_id)
 }
 
 /// The new messages a notification names, oldest first, read in one
@@ -45,6 +55,23 @@ mod tests {
             .unwrap();
         let ids: Vec<&str> = found.iter().map(|m| m.id.as_str()).collect();
         assert_eq!(ids, ["a", "c"], "oldest first, and nothing the store lost");
+    }
+
+    #[test]
+    fn mail_in_the_conversation_on_screen_is_not_announced() {
+        use crate::assistant::run::fake::meta;
+
+        let m = meta("a", "t1", "ann@example.com", "Kites", 1);
+        assert!(in_view(&m, Some(&Target::thread(1, "t1"))));
+        assert!(!in_view(&m, None), "no conversation is open");
+        assert!(!in_view(&m, Some(&Target::thread(1, "t2"))), "another thread is open");
+        assert!(!in_view(&m, Some(&Target::thread(2, "t1"))), "the same thread id on another account");
+        let one = Target {
+            account_id: 1,
+            thread_id: "t1".into(),
+            message_id: Some("b".into()),
+        };
+        assert!(in_view(&m, Some(&one)), "the thread is on screen when one message of it is");
     }
 
     #[test]

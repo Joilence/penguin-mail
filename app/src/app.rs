@@ -16,7 +16,7 @@ use mailrs_domain::{Account, AccountId, Address, ChangeEvent, Label, Provider, R
 use mailrs_store::{accounts, labels, messages};
 use mailrs_sync::{History, MovedFrom};
 
-use crate::app::announce::{announced, still_news};
+use crate::app::announce::{announced, in_view, still_news};
 use crate::compose::Identity;
 use crate::core::Core;
 use crate::notify;
@@ -1506,10 +1506,10 @@ impl App {
         });
     }
 
-    /// Every minute: local rules over mail that came while the app was
-    /// closed or arrived already read, which no new-mail event names, and
-    /// rule changes that waited for a ManageSieve server. Ten seconds
-    /// after start first, once the accounts have started.
+    /// Every minute: local rules over mail no new-mail event names, which
+    /// is what an account's first listing brought and what arrived already
+    /// read, and rule changes that waited for a ManageSieve server. Ten
+    /// seconds after start first, once the accounts have started.
     fn watch_rules(self: &Rc<Self>) {
         let weak = Rc::downgrade(self);
         glib::timeout_add_seconds_local_once(10, {
@@ -1608,8 +1608,7 @@ impl App {
 
     fn announce(self: &Rc<Self>, account_id: AccountId, message_ids: Vec<String>) {
         let settings = self.settings();
-        if self.core.demo || !settings.notifications || self.window().is_some_and(|w| w.is_active())
-        {
+        if self.core.demo || !settings.notifications {
             return;
         }
         let previews = settings.notification_previews;
@@ -1620,21 +1619,23 @@ impl App {
                 .core
                 .read(move |c| announced(c, account_id, &message_ids))
                 .await;
+            let Ok(mut found) = found else {
+                return;
+            };
             // Mail read or filed between the engine's word and this read
             // would get a notification nothing withdraws, so it gets none.
-            let found = found.map(|found| {
-                found
-                    .into_iter()
-                    .filter(|m| still_news(m.in_role(Role::Inbox), m.is_unread()))
-                    .filter(|m| {
-                        !settings.notify_vips_only
-                            || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email))
-                    })
-                    .collect::<Vec<_>>()
+            // Nor does mail in the conversation on screen, which the
+            // person is looking at; the rest is announced even while the
+            // window has focus, as the mail that came while the app was
+            // closed arrives right after it opens.
+            let viewed = this.window().and_then(|w| w.viewed());
+            found.retain(|m| {
+                still_news(m.in_role(Role::Inbox), m.is_unread())
+                    && (!settings.notify_vips_only
+                        || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email)))
+                    && !in_view(m, viewed.as_ref())
             });
-            if let Ok(found) = found
-                && !found.is_empty()
-            {
+            if !found.is_empty() {
                 this.announce_mail(found, previews, buttons);
             }
         });
