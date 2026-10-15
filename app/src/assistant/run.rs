@@ -574,7 +574,20 @@ impl<A: Accounts> Tools<A> {
 
     // ---- Lookups ---------------------------------------------------------
 
+    /// The account with mail a tool names. A calendar account has none, so
+    /// a mail tool naming one is told so before it reaches the account,
+    /// and a tool added later gets the same answer without asking.
     fn account_named(&self, email: &str) -> Result<Account, String> {
+        let account = self.any_account_named(email)?;
+        if !account.provider.serves_mail() {
+            return Err(format!("{} holds calendars and no mail.", account.email));
+        }
+        Ok(account)
+    }
+
+    /// The account a calendar or contacts tool names, a calendar account
+    /// among them.
+    fn any_account_named(&self, email: &str) -> Result<Account, String> {
         self.desk
             .accounts()
             .into_iter()
@@ -718,14 +731,22 @@ impl<A: Accounts> Tools<A> {
         }
     }
 
-    /// The account a tool names, or the default one when it names none.
+    /// The account a calendar or contacts tool names, or the default one
+    /// when it names none.
     fn account_or_default(&self, input: &Value) -> Result<Account, String> {
         match text(input, "account") {
-            Some(email) => self.account_named(&email),
+            Some(email) => self.any_account_named(&email),
             None => {
-                let id = self.desk.default_account().ok_or("Add an account first.")?;
-                self.desk
-                    .accounts()
+                // The window's default is an account with mail. With
+                // calendar accounts alone there is none, and the first of
+                // them is the one there is to ask.
+                let accounts = self.desk.accounts();
+                let id = self
+                    .desk
+                    .default_account()
+                    .or_else(|| accounts.first().map(|a| a.id))
+                    .ok_or("Add an account first.")?;
+                accounts
                     .into_iter()
                     .find(|a| a.id == id)
                     .ok_or_else(|| "Add an account first.".to_string())
@@ -752,11 +773,17 @@ impl<A: Accounts> Tools<A> {
                             .collect()
                     })
                     .unwrap_or_default();
-                json!({
+                let mut account = json!({
                     "email": a.email,
                     "name": settings.account_names.get(&a.email),
                     "labels": names,
-                })
+                });
+                // Said only of an account without mail, so the model does
+                // not hand it to a mail tool.
+                if !a.provider.serves_mail() {
+                    account["calendar_only"] = json!(true);
+                }
+                account
             })
             .collect();
         let screen = self.desk.on_screen();
@@ -783,7 +810,7 @@ impl<A: Accounts> Tools<A> {
 
     /// The accounts a listing may read, in sidebar order.
     fn scope(&self) -> Scope {
-        Scope::over(self.desk.accounts())
+        Scope::of_mail_accounts(&self.desk.accounts())
     }
 
     /// One page of each mailbox, through `Mailboxes::list`.

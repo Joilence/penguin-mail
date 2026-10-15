@@ -437,8 +437,11 @@ impl Default for Empty {
 pub struct Scope(Vec<Account>);
 
 impl Scope {
-    pub fn over(accounts: impl IntoIterator<Item = Account>) -> Scope {
-        Scope(accounts.into_iter().collect())
+    /// Those of `accounts` that have mail ([`mailrs_domain::mail_accounts`]).
+    /// A calendar account has none to list or to search, and asking it
+    /// would only add a line saying where its results come from.
+    pub fn of_mail_accounts(accounts: &[Account]) -> Scope {
+        Scope(mailrs_domain::mail_accounts(accounts))
     }
 
     /// The account with this address, ignoring case.

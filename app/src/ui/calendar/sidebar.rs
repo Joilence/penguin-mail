@@ -13,7 +13,7 @@ use gtk::{gdk, gio, glib};
 use mailrs_domain::calendar::Calendar;
 use mailrs_domain::calendar::list;
 use mailrs_domain::translate::{date_locale, fill, fill_plural, gettext};
-use mailrs_domain::{Account, AccountId, EpochMillis};
+use mailrs_domain::{Account, AccountId, AccountState, EpochMillis, Provider};
 use mailrs_store::services::Miss;
 use mailrs_sync::{Missing, Offers, Waiting, Withheld};
 
@@ -55,6 +55,25 @@ pub struct SidebarAccount {
     /// holiday calendars (`Offers::subscriptions`). When it does not, Add
     /// Calendar offers only New Calendar and the rows lose Unsubscribe.
     pub subscribes: bool,
+    pub provider: Provider,
+    pub state: AccountState,
+}
+
+impl SidebarAccount {
+    /// The account holds calendars and no mail. The mail sidebar has no
+    /// heading for it, so its heading here carries Sign In Again and
+    /// Remove Account.
+    pub fn calendar_only(&self) -> bool {
+        !self.provider.serves_mail()
+    }
+
+    /// A calendar account whose server stopped taking its password: the
+    /// calendars the copy still holds stay listed, with a line saying so
+    /// and Sign In Again under them. A mail account in that state is asked
+    /// in the mail window.
+    fn needs_sign_in(&self) -> bool {
+        self.calendar_only() && self.state == AccountState::NeedsReauth
+    }
 }
 
 /// The sidebar's rows from each account's provider offers, its own
@@ -90,6 +109,8 @@ pub fn sidebar_accounts(
                 hidden: Vec::new(),
                 changeable: offers.calendar_list,
                 subscribes: offers.subscriptions,
+                provider: account.provider,
+                state: account.state,
             }
         })
         .collect()
@@ -118,9 +139,12 @@ pub fn take_off_the_list(
 
 /// Whether an account keeps its heading in the list: not once every
 /// calendar it has is off the list, since the heading would stand over
-/// nothing. Hidden Calendars still brings them back.
+/// nothing. Hidden Calendars still brings them back. A calendar account
+/// keeps its heading all the same: Sign In Again and Remove Account are
+/// nowhere else.
 pub fn shows_heading(account: &SidebarAccount) -> bool {
-    !matches!(&account.reach, CalendarReach::Calendars(list) if list.is_empty() && !account.hidden.is_empty())
+    account.calendar_only()
+        || !matches!(&account.reach, CalendarReach::Calendars(list) if list.is_empty() && !account.hidden.is_empty())
 }
 
 /// Whether `change` alters what the next-event card at the foot of the
@@ -927,6 +951,10 @@ impl CalendarSidebar {
                     body.append(&dim_line(reason));
                 }
             }
+            if account.needs_sign_in() {
+                body.append(&dim_line(&gettext("The server refused the password")));
+                body.append(&sign_in_row(account));
+            }
             let folded = self.folded.borrow().contains(&account.address.to_lowercase());
             let revealer = gtk::Revealer::builder()
                 .child(&body)
@@ -934,7 +962,16 @@ impl CalendarSidebar {
                 .transition_type(gtk::RevealerTransitionType::SlideDown)
                 .transition_duration(150)
                 .build();
-            self.calendar_list.append(&self.heading(&account.address, folded, &revealer));
+            let heading = self.heading(&account.address, folded, &revealer);
+            if account.calendar_only() {
+                let line = gtk::Box::builder().spacing(2).css_classes(["calendar-account"]).build();
+                heading.set_hexpand(true);
+                line.append(&heading);
+                line.append(&account_menu(account));
+                self.calendar_list.append(&line);
+            } else {
+                self.calendar_list.append(&heading);
+            }
             self.calendar_list.append(&revealer);
         }
         let adding = adding_accounts(accounts);
@@ -1115,6 +1152,59 @@ impl CalendarSidebar {
         button.connect_clicked(move |_| on_grant(account_id));
         button
     }
+}
+
+/// The window's action that signs an account in again, taking its id.
+const SIGN_IN_AGAIN: &str = "win.account-reconnect";
+/// The window's action that asks before removing an account.
+const REMOVE_ACCOUNT: &str = "win.account-remove";
+
+/// Sign In Again under a calendar account whose server refused its
+/// password, which opens Add Account on that account's server.
+fn sign_in_row(account: &SidebarAccount) -> gtk::Button {
+    let button = gtk::Button::builder()
+        .label(gettext("Sign In Again"))
+        .css_classes(["flat"])
+        .halign(gtk::Align::Start)
+        .action_name(SIGN_IN_AGAIN)
+        .action_target(&account.id.to_variant())
+        .build();
+    crate::ui::name(
+        &button,
+        &fill(&gettext("Sign in again to {account}"), &[("account", &account.address)]),
+    );
+    button
+}
+
+/// The menu on a calendar account's heading: what the mail sidebar's
+/// heading offers an account, of which a calendar account has only how it
+/// signs in and whether it stays.
+fn account_menu(account: &SidebarAccount) -> gtk::MenuButton {
+    let menu = gio::Menu::new();
+    for (label, action) in [
+        (gettext("Sign In Again…"), SIGN_IN_AGAIN),
+        (gettext("Remove Account…"), REMOVE_ACCOUNT),
+    ] {
+        let item = gio::MenuItem::new(Some(&label), None);
+        item.set_action_and_target_value(Some(action), Some(&account.id.to_variant()));
+        let section = gio::Menu::new();
+        section.append_item(&item);
+        menu.append_section(None, &section);
+    }
+    let options = gtk::MenuButton::builder()
+        .icon_name("view-more-symbolic")
+        .menu_model(&menu)
+        .css_classes(["flat", "circular", "calendar-options"])
+        .valign(gtk::Align::Center)
+        .margin_top(14)
+        .tooltip_text(gettext("Account options"))
+        .build();
+    crate::ui::name(
+        &options,
+        &fill(&gettext("Options for {account}"), &[("account", &account.address)]),
+    );
+    crate::ui::name_menu_items_of(&options);
+    options
 }
 
 fn chevron_icon(folded: bool) -> &'static str {
@@ -1428,8 +1518,34 @@ mod tests {
                 hidden: Vec::new(),
                 changeable: true,
                 subscribes: true,
+                provider: Provider::Gmail,
+                state: AccountState::Ok,
             }]
         );
+    }
+
+    #[test]
+    fn a_calendar_account_carries_the_account_menu_and_says_when_it_needs_to_sign_in() {
+        let calendar_account = |id, name| Account { provider: Provider::CalDav, ..account(id, name) };
+        let refused = |account| Account { state: AccountState::NeedsReauth, ..account };
+        let row = |account, held: &str| (account, Offers::EVERYTHING, Withheld::NONE, vec![calendar(held)]);
+        let rows = sidebar_accounts(
+            &[
+                row(refused(account(1, "dana@example.com")), "primary"),
+                row(calendar_account(4, "dana@cloud.example.org"), "family"),
+                row(refused(calendar_account(5, "robin@cloud.example.org")), "personal"),
+            ],
+            |_| None,
+        );
+        assert_eq!(rows.iter().map(SidebarAccount::calendar_only).collect::<Vec<_>>(), [false, true, true]);
+        assert_eq!(rows.iter().map(SidebarAccount::needs_sign_in).collect::<Vec<_>>(), [false, false, true], "the mail window asks a mail account");
+        // What the copy holds stays on the list, to show or hide as before.
+        assert_eq!(rows[2].reach, CalendarReach::Calendars(vec![calendar("personal")]));
+        let unlisted = HashMap::from([(5, HashSet::from(["personal".to_string()]))]);
+        let hidden = take_off_the_list(rows, &unlisted);
+        assert_eq!(hidden[2].reach, CalendarReach::Calendars(Vec::new()));
+        assert_eq!(hidden[2].hidden, vec![calendar("personal")]);
+        assert!(shows_heading(&hidden[2]), "Sign In Again stays reachable");
     }
 
     #[test]
@@ -1559,6 +1675,15 @@ mod tests {
         let rows = take_off_the_list(rows, &HashMap::from([(1, HashSet::from(["primary".to_string()]))]));
         assert!(!shows_heading(&rows[0]));
         assert_eq!(hidden_count(&rows), 1, "Hidden Calendars still brings it back");
+    }
+
+    #[test]
+    fn a_calendar_account_with_every_calendar_hidden_keeps_its_heading() {
+        let dana = Account { provider: Provider::CalDav, ..account(4, "dana@cloud.example.org") };
+        let rows = sidebar_accounts(&[(dana, Offers::EVERYTHING, Withheld::NONE, vec![calendar("family")])], |_| None);
+        let rows = take_off_the_list(rows, &HashMap::from([(4, HashSet::from(["family".to_string()]))]));
+        assert_eq!(hidden_count(&rows), 1);
+        assert!(shows_heading(&rows[0]), "Sign In Again and Remove Account are nowhere else");
     }
 
     #[test]

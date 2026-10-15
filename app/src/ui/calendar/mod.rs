@@ -51,7 +51,7 @@ use mailrs_domain::calendar::series::{self, RepeatScope};
 use mailrs_domain::calendar::{Access, Calendar, Event, Occurrence};
 use mailrs_domain::invitation::Answer;
 use mailrs_domain::translate::{date_locale, gettext, with_reason};
-use mailrs_domain::{Account, AccountId, EpochMillis};
+use mailrs_domain::{Account, AccountId, EpochMillis, Provider};
 use mailrs_sync::Permitted;
 use mailrs_sync::calendar_copy::Listed;
 use mailrs_sync::calendar_copy::event_change::{self, Action, Ask, Edit, EventChange, Facts, Undo};
@@ -204,6 +204,9 @@ pub struct CalendarView {
     older_spinner: gtk::Spinner,
     older_label: gtk::Label,
     carousel: adw::Carousel,
+    /// The wait for the carousel's width before it goes to its middle
+    /// page, while one runs.
+    laid_out: pager::LaidOut,
     pages: RefCell<Vec<Rc<Page>>>,
     list: Rc<Agenda>,
     results: Rc<Agenda>,
@@ -614,6 +617,7 @@ impl CalendarView {
                 older_spinner,
                 older_label,
                 carousel,
+                laid_out: pager::LaidOut::default(),
                 pages: RefCell::new(Vec::new()),
                 list,
                 results,
@@ -717,9 +721,21 @@ impl CalendarView {
             }
         });
         let weak = Rc::downgrade(&view);
-        view.carousel.connect_map(move |_| {
+        view.carousel.connect_map(move |carousel| {
+            // A mapped carousel is not laid out yet, and the middle page
+            // needs a width.
+            let Some(view) = weak.upgrade() else { return };
+            let weak = weak.clone();
+            view.laid_out.then(carousel, move || {
+                if let Some(view) = weak.upgrade() {
+                    view.center();
+                }
+            });
+        });
+        let weak = Rc::downgrade(&view);
+        view.carousel.connect_unmap(move |_| {
             if let Some(view) = weak.upgrade() {
-                view.center();
+                view.laid_out.stop();
             }
         });
         let weak = Rc::downgrade(&view);
@@ -1619,9 +1635,9 @@ impl CalendarView {
     /// furthest away goes round to the other end for the next range.
     fn settled_on(self: &Rc<Self>, index: u32) {
         let pages = self.pages.borrow().clone();
-        // An unmapped carousel has no width to hold a position in and
-        // reports its first page; `connect_map` puts it back on the middle.
-        if self.arranging.get() || pages.len() != 3 || !self.carousel.is_mapped() {
+        // A carousel with no width, off screen or not laid out yet, reports
+        // its first page; it comes to rest on the middle once it has one.
+        if self.arranging.get() || pages.len() != 3 || !pager::rests(&self.carousel) {
             return;
         }
         // Which of the view's pages the carousel landed on, by widget:
@@ -1953,10 +1969,14 @@ impl CalendarView {
             }) as Box<dyn Fn()>;
             (b.removal, run)
         });
+        let running = self.core.account(o.account_id);
+        let services = running.as_deref().map(|sync| sync.services());
         // A proposal moves a meeting's time, so a whole-day event and one
-        // with nobody to ask get no door to it.
+        // with nobody to ask get no door to it, and nor does an account
+        // with no mail to send it.
         let proposable = !o.event.all_day
-            && (o.event.organizer.is_some() || o.event.guests.iter().any(|g| g.organizer && !g.me));
+            && (o.event.organizer.is_some() || o.event.guests.iter().any(|g| g.organizer && !g.me))
+            && crate::offered::can_propose(self.provider_of(o.account_id), services);
         let propose_view = Rc::downgrade(self);
         let propose_o = o.clone();
         let on_propose = proposable.then(|| {
@@ -1970,6 +1990,7 @@ impl CalendarView {
             anchor,
             o,
             &calendar,
+            crate::offered::organizer_hears(self.provider_of(o.account_id), services),
             move |answer, note| {
                 if let Some(view) = weak.upgrade() {
                     view.answer(occurrence.clone(), answer, note);
@@ -2399,6 +2420,15 @@ impl CalendarView {
             self.new_split.set_menu_model(Some(&menu));
             self.new_types.replace(types);
         }
+    }
+
+    /// Who serves `account_id`, when the calendar knows the account.
+    fn provider_of(&self, account_id: AccountId) -> Option<Provider> {
+        self.accounts
+            .borrow()
+            .iter()
+            .find(|(a, _, _)| a.id == account_id)
+            .map(|(a, _, _)| a.provider)
     }
 
     /// What `account_id`'s provider keeps, or what an account still

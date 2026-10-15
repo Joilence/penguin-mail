@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::future::Future;
 use std::time::Duration;
 
+use mailrs_dav::{DavClient, Kind as DavKind, Login as DavLogin};
 use mailrs_discover::{Security, Server, UserName};
 use mailrs_domain::{Account, AccountId, AccountState, Provider};
 use mailrs_gmail::{Granted, GmailClient, GmailError, OAuthClient, TokenStore};
@@ -147,7 +148,8 @@ pub enum Lacks {
     /// The client it signed in with: this build has none, or an own
     /// Google client left the keyring or `config.toml`.
     Client,
-    /// Its refresh token or password, or an IMAP or POP3 account's servers.
+    /// Its refresh token or password, or an IMAP or POP3 account's
+    /// servers, or a calendar account's server.
     Secret,
 }
 
@@ -185,6 +187,7 @@ impl Connector {
             Provider::Jmap => {
                 connect_jmap(db, &self.secrets, account, window_days).await
             }
+            Provider::CalDav => connect_caldav(db, Arc::clone(&self.secrets.passwords), account).await,
             Provider::Microsoft => {
                 let Some(client) = self.clients.microsoft.clone() else {
                     tracing::warn!(account = account.id, "no Microsoft client in this build");
@@ -492,6 +495,40 @@ pub fn auth_of(saved: &mailrs_store::jmap::JmapSaved, address: &str, secret: Str
         }),
         mailrs_store::jmap::JmapAuth::OAuth => Err(BackendError::NeedsReauth),
     }
+}
+
+/// The services for a calendar account, from the server the store keeps
+/// for it and the password in `passwords`: a calendar and no mail.
+/// Without either, the store records that the account needs to sign in
+/// again before this answers `NeedsReauth`, since no loop runs to say so.
+/// The server tells the adapter which addresses the account goes by, so
+/// none is handed in. Nothing here connects.
+pub async fn connect_caldav<P: PasswordStore + 'static>(
+    db: &Db,
+    passwords: Arc<P>,
+    account: &Account,
+) -> Result<AccountServices, SyncError> {
+    connect_caldav_within(db, passwords, account, STEP_WAIT).await
+}
+
+pub(crate) async fn connect_caldav_within<P: PasswordStore + 'static>(
+    db: &Db,
+    passwords: Arc<P>,
+    account: &Account,
+    wait: Duration,
+) -> Result<AccountServices, SyncError> {
+    let id = account.id;
+    let found = bounded(id, "the mail store", wait, db.read(move |c| mailrs_store::services::load(c, id))).await?;
+    let server = found.into_iter().find(|f| f.kind == ServiceKind::CalDav && f.confirmed);
+    let password = read_secret(passwords, id, wait).await?;
+    let (Some(server), Some(password)) = (server, password) else {
+        let marked = db.write(move |c| accounts::set_state(c, id, AccountState::NeedsReauth));
+        bounded(id, "the mail store", wait, marked).await?;
+        return Err(BackendError::NeedsReauth.into());
+    };
+    let client = DavClient::new(&server.url, DavKind::Calendar, DavLogin::new(&server.user_name, password))
+        .map_err(|err| BackendError::Refused(err.to_string()))?;
+    Ok(AccountServices::calendar_only(client))
 }
 
 /// This run's OAuth sessions, one per JMAP account, so a restart of the

@@ -1297,13 +1297,77 @@ pub enum Kept {
 }
 
 /// Whether the added page lists `role` for a new account of `provider`:
-/// the folders its server fills. Gmail has no Archive of its own, and a
-/// POP3 server holds an inbox alone.
+/// the folders its server fills. Gmail has no Archive of its own, a POP3
+/// server holds an inbox alone, and a calendar account has no mail.
 pub fn shows_folder(provider: Provider, role: mailrs_domain::Role) -> bool {
     match provider {
         Provider::Gmail => role != mailrs_domain::Role::Archive,
         Provider::Pop3 => role == mailrs_domain::Role::Inbox,
         Provider::Imap | Provider::Microsoft | Provider::Jmap => true,
+        Provider::CalDav => false,
+    }
+}
+
+/// Whether the calendar page has what a sign-in needs: where the server
+/// is, who signs in, and a password. The password is taken as typed,
+/// since a space may be part of one.
+pub fn calendar_ready(server: &str, user_name: &str, password: &str) -> bool {
+    !server.trim().is_empty() && !user_name.trim().is_empty() && !password.is_empty()
+}
+
+/// Whether the sign-in that ended as `now` is the one `asked` was opened
+/// for. The calendar page opened for Sign In Again takes a password for
+/// one account; a sign-in that ends as another account added that one.
+pub fn signed_in_again(asked: Option<&Account>, now: &Account) -> bool {
+    asked.is_some_and(|asked| asked.id == now.id)
+}
+
+/// What the calendar page says when its sign-in fails, signing `again`
+/// in again or adding an account. What the sign-in already put in words,
+/// an address that is not HTTPS or a name another account holds, stands
+/// as it is.
+pub fn calendar_problem(err: &anyhow::Error, again: Option<&Account>) -> String {
+    use mailrs_sync::sign_in::CalDavSignInError;
+    use mailrs_sync::{BackendError, SyncError};
+
+    let unknown = |reason: &dyn std::fmt::Display| {
+        let said = match again {
+            Some(_) => gettext("Could not sign in: {reason}"),
+            None => gettext("Could not add the calendar: {reason}"),
+        };
+        mailrs_domain::translate::with_reason(&said, &reason, &[])
+    };
+    match err.downcast_ref::<CalDavSignInError>() {
+        // An IMAP or POP3 account that holds the name can take the
+        // server's calendars itself, which is the way on from here.
+        Some(taken @ CalDavSignInError::Taken { holder: Provider::Imap | Provider::Pop3, .. }) => format!(
+            "{taken} {}",
+            gettext(
+                "To see this server's calendars there, open Preferences, then Accounts, open that account, \
+                 and type this server's address under Calendar, Contacts and Rules Servers."
+            )
+        ),
+        Some(
+            said @ (CalDavSignInError::Taken { .. }
+            | CalDavSignInError::Elsewhere { .. }
+            | CalDavSignInError::OtherUser { .. }
+            | CalDavSignInError::Moves { .. }
+            | CalDavSignInError::NotHttps),
+        ) => said.to_string(),
+        Some(CalDavSignInError::Server(SyncError::Backend(backend))) => match backend {
+            BackendError::NeedsReauth => gettext(
+                "The server did not take that user name and password. Where it uses two-step \
+                 sign-in, it needs an app password.",
+            ),
+            BackendError::Offline(_) => gettext(
+                "Penguin Mail could not reach that server. Check the address and your connection.",
+            ),
+            // A web page at the address, or no CalDAV there, is refused in
+            // the protocol's own words, which are not for the page.
+            BackendError::Unsupported | BackendError::Refused(_) => gettext("No calendar was found at that address."),
+            other => unknown(other),
+        },
+        _ => unknown(err),
     }
 }
 
@@ -2059,6 +2123,78 @@ mod tests {
     use mailrs_store::servers::{Pop3Servers, Saved, Servers};
 
     use super::*;
+
+    use mailrs_sync::sign_in::CalDavSignInError;
+    use mailrs_sync::{BackendError, SyncError};
+
+    #[test]
+    fn each_way_a_calendar_sign_in_fails_has_its_own_words() {
+        let no_calendar = "No calendar was found";
+        let failures = [
+            (BackendError::NeedsReauth, "app password"),
+            (BackendError::Offline("no route".into()), "could not reach"),
+            (BackendError::Unsupported, no_calendar),
+            // A web page at the address, or a server that is no CalDAV
+            // server, answers the login try in the protocol's own words.
+            (BackendError::Refused("HTTP 404: Not Found".into()), no_calendar),
+            (BackendError::Refused("HTTP 405: Method Not Allowed".into()), no_calendar),
+            (BackendError::Refused("the server named no principal".into()), no_calendar),
+        ];
+        for (failure, words) in failures {
+            let shown = calendar_problem(&CalDavSignInError::Server(SyncError::Backend(failure)).into(), None);
+            assert!(shown.contains(words) && !shown.contains("HTTP "), "{shown}");
+        }
+        let not_https = calendar_problem(&CalDavSignInError::NotHttps.into(), None);
+        assert!(not_https.contains("HTTPS only"), "words the sign-in chose stand: {not_https}");
+        let other_user = CalDavSignInError::OtherUser { name: "robin@cloud.example.org".into(), user: "Robin".into() };
+        let shown = calendar_problem(&other_user.into(), None);
+        assert!(shown.contains("signed in to this server as Robin. Type Robin"), "{shown}");
+    }
+
+    #[test]
+    fn a_taken_name_says_whose_it_is() {
+        let taken = |holder| -> anyhow::Error {
+            CalDavSignInError::Taken { name: "robin@example.org".into(), provider: "Fastmail".into(), holder }.into()
+        };
+        let by_mail = calendar_problem(&taken(Provider::Imap), None);
+        assert!(by_mail.contains("robin@example.org") && by_mail.contains("Fastmail"), "{by_mail}");
+        assert!(by_mail.contains("Preferences"), "an IMAP account can take the server itself: {by_mail}");
+        // The group the account's servers sit in on the Accounts page,
+        // in contacts_prefs.rs, word for word.
+        assert!(by_mail.contains("under Calendar, Contacts and Rules Servers"), "{by_mail}");
+        assert!(calendar_problem(&taken(Provider::Pop3), None).contains("Preferences"));
+        let by_google = calendar_problem(&taken(Provider::Gmail), None);
+        assert!(by_google.contains("robin@example.org") && !by_google.contains("Preferences"), "{by_google}");
+    }
+
+    #[test]
+    fn anything_else_keeps_its_reason() {
+        let full = || anyhow::anyhow!("the disk is full");
+        assert_eq!(calendar_problem(&full(), None), "Could not add the calendar: the disk is full");
+        let again = icloud_account();
+        assert_eq!(calendar_problem(&full(), Some(&again)), "Could not sign in: the disk is full", "Sign In Again adds nothing");
+    }
+
+    /// Sign In Again opens the calendar page for one account. A sign-in
+    /// that ends as another account, because the address or the user
+    /// name changed, added one and left the first as it was.
+    #[test]
+    fn only_the_account_asked_to_sign_in_again_has() {
+        let asked = icloud_account();
+        let another = Account { id: asked.id + 1, ..asked.clone() };
+        assert!(signed_in_again(Some(&asked), &asked));
+        assert!(!signed_in_again(Some(&asked), &another));
+        assert!(!signed_in_again(None, &asked), "a first sign-in is not a second");
+    }
+
+    #[test]
+    fn the_calendar_page_waits_for_an_address_a_user_and_a_password() {
+        assert!(calendar_ready("cloud.example.org", "robin", "secret"));
+        assert!(!calendar_ready("  ", "robin", "secret"));
+        assert!(!calendar_ready("cloud.example.org", " ", "secret"));
+        assert!(!calendar_ready("cloud.example.org", "robin", ""));
+        assert!(calendar_ready("cloud.example.org", "robin", " "), "a password may be a space");
+    }
 
     #[test]
     fn a_pop3_account_is_done_when_its_first_check_is() {
@@ -3443,6 +3579,7 @@ mod tests {
         assert!(shows_folder(Provider::Pop3, MailRole::Inbox));
         assert!(!shows_folder(Provider::Pop3, MailRole::Sent));
         assert!(!shows_folder(Provider::Pop3, MailRole::Archive));
+        assert!(!shows_folder(Provider::CalDav, MailRole::Inbox));
     }
 
     fn fastmail_jmap() -> mailrs_discover::JmapFound {

@@ -280,7 +280,8 @@ pub struct Sidebar {
     /// Switches between the mail and the calendar. Its toggles are named
     /// `mail` and `calendar`; it hides while no account offers a
     /// calendar, and "Mailboxes" shows in its place, since a switch to a
-    /// calendar that cannot show anything would only mislead.
+    /// calendar that cannot show anything would only mislead. It hides
+    /// too while no account has mail, and "Calendars" shows in its place.
     pub switch: adw::ToggleGroup,
     /// The badge on the Mail toggle and on the Calendar one.
     badges: [(Space, gtk::Label); 2],
@@ -639,7 +640,7 @@ impl Sidebar {
         true
     }
 
-    /// Shows the switch, or "Mailboxes" in its place.
+    /// Shows the switch, or the name of the list in its place.
     pub fn set_switch_visible(&self, visible: bool) {
         self.switch.set_visible(visible);
         self.title.set_visible(!visible);
@@ -655,6 +656,7 @@ impl Sidebar {
         }
         self.content.set_visible_child_name("calendar");
         self.mail_showing.set(false);
+        self.title.set_title(&gettext("Calendars"));
         self.sync_foot();
         self.sync_badges();
     }
@@ -663,6 +665,7 @@ impl Sidebar {
     pub fn show_mail(&self) {
         self.content.set_visible_child_name("mail");
         self.mail_showing.set(true);
+        self.title.set_title(&gettext("Mailboxes"));
         self.sync_foot();
         self.sync_badges();
     }

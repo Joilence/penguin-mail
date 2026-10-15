@@ -1,7 +1,11 @@
 //! The carousel's three pages: the range before, the one on screen and
 //! the one after.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use adw::prelude::*;
+use gtk::{gdk, glib};
 
 /// Shows `views` as the carousel's three pages, the middle one on
 /// screen, and gives back the holders they sit in. Pass the holders the
@@ -35,6 +39,78 @@ pub(super) fn show_views(carousel: &adw::Carousel, holders: Vec<adw::Bin>, views
     holders
 }
 
+/// Whether the carousel is somewhere a page change can be read from. With
+/// no width it holds no position and reports its first page, whatever
+/// page it was sent to: while it is off screen, and also once it is on
+/// screen and not laid out yet, as when the calendar is shown in the pass
+/// that puts its page there. A report read then would pass for a swipe
+/// to the range before.
+pub(super) fn rests(carousel: &adw::Carousel) -> bool {
+    holds_a_position(carousel.is_mapped(), carousel.width())
+}
+
+fn holds_a_position(mapped: bool, width: i32) -> bool {
+    mapped && width > 0
+}
+
+/// Sends the carousel to a page once it has a width, one wait at a time.
+/// A carousel sent to a page before then stays on its first one. The wait
+/// listens to the paints of the carousel's frame clock rather than asking
+/// for frames, so a carousel left on screen with no width costs nothing
+/// until a layout gives it one.
+#[derive(Default)]
+pub(super) struct LaidOut(Rc<RefCell<Option<(gdk::FrameClock, glib::SignalHandlerId)>>>);
+
+impl LaidOut {
+    /// Runs `send`, which sends the carousel to a page: at once when it is
+    /// laid out, otherwise after the first paint that finds it so. A wait
+    /// still running ends first, so a carousel shown twice before its
+    /// first frame is sent once.
+    pub(super) fn then(&self, carousel: &adw::Carousel, send: impl Fn() + 'static) {
+        self.stop();
+        if carousel.width() > 0 {
+            return send();
+        }
+        // Only a carousel off screen has no clock, and it waits for its
+        // map, which asks again.
+        let Some(clock) = carousel.frame_clock() else {
+            return;
+        };
+        let (waiting, carousel) = (Rc::clone(&self.0), carousel.downgrade());
+        let id = clock.connect_after_paint(move |_| match carousel.upgrade() {
+            // Not laid out yet: the next paint looks again.
+            Some(carousel) if carousel.width() <= 0 => {}
+            Some(_) => {
+                stop(&waiting);
+                send();
+            }
+            // A carousel that is gone has no page to go to.
+            None => stop(&waiting),
+        });
+        *self.0.borrow_mut() = Some((clock, id));
+    }
+
+    /// Ends the wait, as when the carousel leaves the screen before it is
+    /// laid out: the next time it is shown waits anew.
+    pub(super) fn stop(&self) {
+        stop(&self.0);
+    }
+}
+
+/// A view dropped while its carousel still waits takes the wait with it,
+/// so nothing is left listening to the frame clock.
+impl Drop for LaidOut {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+fn stop(waiting: &RefCell<Option<(gdk::FrameClock, glib::SignalHandlerId)>>) {
+    if let Some((clock, id)) = waiting.borrow_mut().take() {
+        clock.disconnect(id);
+    }
+}
+
 /// Runs `refocus`, which gives the keyboard focus back to a page whose
 /// blocks were just built again, and keeps `scroller` where it was.
 ///
@@ -62,6 +138,64 @@ pub(crate) mod checks {
     pub fn run() {
         new_views_leave_the_middle_page_on_screen();
         focus_on_a_new_block_leaves_the_hours_where_they_were();
+        a_carousel_shown_before_it_is_laid_out_rests_on_its_middle_page();
+    }
+
+    /// The calendar shown in the pass that puts its page on screen: the
+    /// carousel is mapped with no width, and in the app a scroll to its
+    /// middle page then left it on the first, the week before. The scroll
+    /// has to wait for the width, and then happen once, however many
+    /// times the carousel was shown before its first frame.
+    fn a_carousel_shown_before_it_is_laid_out_rests_on_its_middle_page() {
+        let carousel = adw::Carousel::builder().allow_long_swipes(false).build();
+        let stack = gtk::Stack::new();
+        stack.add_named(&gtk::Label::new(Some("first run")), Some("first"));
+        stack.add_named(&carousel, Some("calendar"));
+        let window = gtk::Window::builder()
+            .default_width(800)
+            .default_height(600)
+            .child(&stack)
+            .build();
+        window.present();
+        spin(Duration::from_millis(300));
+        let holders = show_views(&carousel, Vec::new(), labels("week"));
+
+        stack.set_visible_child_name("calendar");
+        assert_eq!(carousel.width(), 0, "the check needs a carousel that is not laid out yet");
+        let sent = Rc::new(Cell::new(0));
+        let laid_out = LaidOut::default();
+        let send_to = |carousel: &adw::Carousel, page: &adw::Bin| {
+            let (again, page, count) = (carousel.clone(), page.clone(), Rc::clone(&sent));
+            laid_out.then(carousel, move || {
+                count.set(count.get() + 1);
+                again.scroll_to(&page, false);
+            });
+        };
+        // Mapped, unmapped and mapped again before a frame.
+        send_to(&carousel, &holders[2]);
+        send_to(&carousel, &holders[1]);
+        assert_eq!(sent.get(), 0, "a carousel with no width was sent to a page it cannot hold");
+        spin(Duration::from_millis(500));
+
+        assert!(carousel.width() > 0);
+        assert_eq!(sent.get(), 1, "once it has a width, and once only");
+        assert_eq!(carousel.position(), 1.0);
+
+        // One that is laid out already goes at once.
+        send_to(&carousel, &holders[0]);
+        assert_eq!(sent.get(), 2);
+
+        // One that leaves the screen before its first frame is not sent.
+        let other = adw::Carousel::new();
+        let other_holders = show_views(&other, Vec::new(), labels("day"));
+        stack.add_named(&other, Some("other"));
+        stack.set_visible_child_name("other");
+        assert_eq!(other.width(), 0, "the check needs a carousel that is not laid out yet");
+        send_to(&other, &other_holders[1]);
+        laid_out.stop();
+        spin(Duration::from_millis(300));
+        assert_eq!(sent.get(), 2, "the wait ended with the unmap");
+        window.destroy();
     }
 
     /// Answering an invitation reads the week again and builds its blocks
@@ -158,5 +292,22 @@ pub(crate) mod checks {
         assert_eq!(carousel.position(), 1.0);
         assert!(carousel.nth_page(1) == holders[1].clone().upcast::<gtk::Widget>());
         window.destroy();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::holds_a_position;
+
+    /// Showing the calendar in the pass that puts its page on screen maps
+    /// the carousel before it is laid out. It then reported its first page
+    /// again and again, and each report was read as a swipe to the week
+    /// before, so the calendar opened months in the past.
+    #[test]
+    fn a_carousel_without_a_width_holds_no_position() {
+        assert!(!holds_a_position(false, 0), "not on screen");
+        assert!(!holds_a_position(false, 1032), "not on screen, whatever it last measured");
+        assert!(!holds_a_position(true, 0), "on screen and not laid out yet");
+        assert!(holds_a_position(true, 1032));
     }
 }

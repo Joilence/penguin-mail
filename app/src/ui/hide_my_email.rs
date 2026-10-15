@@ -109,7 +109,7 @@ pub fn present(
         .transition_type(gtk::StackTransitionType::Crossfade)
         .vhomogeneous(false)
         .build();
-    let accounts = with_rules(app.accounts(), &offers);
+    let accounts = with_rules(app.mail_accounts(), &offers);
     let masked: Vec<Account> = accounts
         .iter()
         .filter(|a| offers(a.id).masked_email)

@@ -94,6 +94,105 @@ async fn an_unknown_tool_says_so() {
     );
 }
 
+const CALENDARS: &str = "robin@cloud.example.org";
+
+/// The harness with a calendar account beside its mail account, listed
+/// and not connected to any mail.
+async fn with_calendar_account() -> Harness {
+    let h = harness().await;
+    h.desk.0.borrow_mut().accounts.push(mailrs_domain::Account {
+        id: 9,
+        email: CALENDARS.into(),
+        state: mailrs_domain::AccountState::Ok,
+        provider: mailrs_domain::Provider::CalDav,
+        provider_name: None,
+    });
+    h
+}
+
+#[tokio::test]
+async fn get_context_says_which_account_holds_calendars_alone() {
+    let h = with_calendar_account().await;
+    let context = h.ok("get_context", json!({})).await;
+    assert_eq!(
+        context["accounts"][1],
+        json!({"email": CALENDARS, "name": null, "labels": [], "calendar_only": true})
+    );
+    assert_eq!(context["accounts"][0].get("calendar_only"), None, "a mail account reads as it did");
+}
+
+#[tokio::test]
+async fn a_listing_reaches_for_the_accounts_with_mail_alone() {
+    let h = with_calendar_account().await;
+    let scope = h.tools.scope();
+    assert!(scope.id_of(ME).is_some());
+    assert_eq!(scope.id_of(CALENDARS), None, "a search has nothing to ask an account with no mail");
+}
+
+#[tokio::test]
+async fn a_mail_tool_turns_a_calendar_account_away_in_words() {
+    let h = with_calendar_account().await;
+    let refused = h
+        .run("read_attachment", json!({"account": CALENDARS, "message_id": "m1", "attachment": "a.pdf"}))
+        .await
+        .unwrap_err();
+    assert!(refused.contains("holds calendars and no mail"), "{refused}");
+}
+
+#[tokio::test]
+async fn nothing_is_written_or_listed_from_a_calendar_account() {
+    let h = with_calendar_account().await;
+    let message = json!({"account": CALENDARS, "to": ["ann@example.com"], "body": "Friday works."});
+    for (tool, input) in [
+        ("draft_email", message.clone()),
+        ("send_email", message),
+        ("list_drafts", json!({"account": CALENDARS})),
+        ("list_newsletters", json!({"account": CALENDARS})),
+    ] {
+        let refused = h.run(tool, input).await.unwrap_err();
+        assert!(refused.contains("holds calendars and no mail"), "{tool}: {refused}");
+    }
+    assert!(h.asked().composed.is_empty(), "no draft was made");
+}
+
+#[tokio::test]
+async fn a_default_set_to_a_calendar_account_writes_from_one_with_mail() {
+    let h = with_calendar_account().await;
+    h.desk.0.borrow_mut().settings.account_defaults.assistant =
+        crate::settings::AccountChoice::Account(CALENDARS.into());
+    h.ok("draft_email", json!({"to": ["ann@example.com"], "body": "Friday works."})).await;
+    assert_eq!(h.asked().composed[0].account_id, h.account_id);
+}
+
+#[tokio::test]
+async fn with_calendar_accounts_alone_a_calendar_tool_needs_no_account_named() {
+    let h = harness().await;
+    {
+        let mut desk = h.desk.0.borrow_mut();
+        desk.accounts = vec![mailrs_domain::Account {
+            id: h.account_id,
+            email: CALENDARS.into(),
+            state: mailrs_domain::AccountState::Ok,
+            provider: mailrs_domain::Provider::CalDav,
+            provider_name: None,
+        }];
+        // The window's default is an account with mail, and there is none.
+        desk.default_account = None;
+    }
+    let listed = h.run("list_events", json!({"from": "2026-01-05", "to": "2026-01-05"})).await;
+    assert!(listed.is_ok(), "{listed:?}");
+}
+
+#[tokio::test]
+async fn a_calendar_tool_still_reaches_a_calendar_account() {
+    let h = with_calendar_account().await;
+    // The harness runs no calendar for the account, so the tool may fail
+    // further on. It must not turn the account away for having no mail.
+    if let Err(err) = h.run("list_calendars", json!({"account": CALENDARS})).await {
+        assert!(!err.contains("no mail"), "{err}");
+    }
+}
+
 #[tokio::test]
 async fn get_context_reports_the_screen_the_accounts_and_the_labels() {
     let h = harness().await;

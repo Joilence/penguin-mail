@@ -46,6 +46,10 @@ pub struct Homes {
     pub principal: String,
     pub calendar: Option<String>,
     pub addressbook: Option<String>,
+    /// The addresses the principal goes by in an invitation, as its
+    /// `calendar-user-address-set` names them. Empty on a server that
+    /// names none, such as one that does no scheduling.
+    pub addresses: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -116,10 +120,13 @@ pub trait DavApi: Send + Sync + 'static {
     fn put(&self, href: &str, body: &str, kind: Kind, when: Precondition) -> impl Future<Output = Result<Option<String>, DavError>> + Send;
     fn delete(&self, href: &str, etag: Option<&str>) -> impl Future<Output = Result<(), DavError>> + Send;
     fn find_uid(&self, collection: &str, uid: &str) -> impl Future<Output = Result<Option<Fetched>, DavError>> + Send;
-    /// Whether the server's `DAV:` header lists `calendar-auto-schedule`,
-    /// which means it mails the organizer's reply itself when a PUT
-    /// changes an attendee's PARTSTAT.
-    fn auto_schedule(&self) -> impl Future<Output = Result<bool, DavError>> + Send;
+    /// Whether the `DAV:` header answered at `at` lists
+    /// `calendar-auto-schedule`, which means the server mails the
+    /// organizer's reply itself when a PUT changes an attendee's PARTSTAT.
+    /// `None` asks at the server's own address. RFC 6638 has a server say
+    /// so on what takes part in scheduling, a calendar among them, and
+    /// Nextcloud says it there and not at its address.
+    fn auto_schedule(&self, at: Option<&str>) -> impl Future<Output = Result<bool, DavError>> + Send;
     fn host(&self) -> &str;
 }
 
@@ -138,6 +145,25 @@ pub fn same_site(host: &str, other: &str) -> bool {
         (Some(a), Some(b)) => a.eq_ignore_ascii_case(b),
         _ => host.eq_ignore_ascii_case(other),
     }
+}
+
+/// The host a server address names, in lower case, without the port or
+/// a user name written into it. `None` for text that is no such address.
+pub fn host_of(url: &str) -> Option<String> {
+    Url::parse(url).ok()?.host_str().map(str::to_ascii_lowercase)
+}
+
+/// Whether two addresses name one server: the same scheme, host and port,
+/// and the same path whatever slash it ends with. Two servers on one host,
+/// at another port or under another path, are two. An address that does
+/// not parse names no server.
+pub fn same_address(a: &str, b: &str) -> bool {
+    let server = |address: &str| {
+        let url = Url::parse(address).ok()?;
+        let path = url.path().trim_end_matches('/').to_string();
+        Some((url.scheme().to_string(), url.host_str()?.to_ascii_lowercase(), url.port_or_known_default(), path))
+    };
+    matches!((server(a), server(b)), (Some(a), Some(b)) if a == b)
 }
 
 /// Whether the hosts of two addresses are on one site, as [`same_site`]
@@ -424,7 +450,12 @@ impl DavApi for DavClient {
         let homes = xml::parse_multistatus(&answer.body)?;
         let props = homes.responses.first().map(|r| r.props.clone()).unwrap_or_default();
         let resolve = |home: Option<String>| home.map(|h| self.resolve(&answer.url, &h));
-        Ok(Homes { principal, calendar: resolve(props.calendar_home), addressbook: resolve(props.addressbook_home) })
+        Ok(Homes {
+            principal,
+            calendar: resolve(props.calendar_home),
+            addressbook: resolve(props.addressbook_home),
+            addresses: props.addresses,
+        })
     }
 
     async fn collections(&self, home: &str, kind: Kind) -> Result<Vec<Collection>, DavError> {
@@ -599,8 +630,9 @@ impl DavApi for DavClient {
         }))
     }
 
-    async fn auto_schedule(&self) -> Result<bool, DavError> {
-        let answer = self.send("OPTIONS", &path_of(self.base.as_str()), None, None, &[]).await?;
+    async fn auto_schedule(&self, at: Option<&str>) -> Result<bool, DavError> {
+        let own = path_of(self.base.as_str());
+        let answer = self.send("OPTIONS", at.unwrap_or(&own), None, None, &[]).await?;
         Ok(answer.dav.is_some_and(|header| header.split(',').any(|token| token.trim().eq_ignore_ascii_case("calendar-auto-schedule"))))
     }
 

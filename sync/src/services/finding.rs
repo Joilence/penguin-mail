@@ -256,19 +256,39 @@ pub async fn keep_oauth_table(db: &Db, account: &mailrs_domain::Account, session
 
 /// A URL the person typed for `kind`, checked with the login and kept.
 pub async fn use_typed<P: ServiceProbe>(probe: &P, db: &Db, account_id: AccountId, kind: ServiceKind, url: &str, user: &str, password: &str) -> Result<FoundService, SyncError> {
-    let url = url.trim();
-    if url.starts_with("http://") {
-        return Err(BackendError::Refused(mailrs_domain::translate::gettext("Penguin Mail reaches calendar and contact servers over HTTPS only.")).into());
-    }
-    let url = match url.contains("://") {
-        true => url.to_string(),
-        false => format!("https://{url}"),
+    let url = https_url(url).ok_or_else(|| BackendError::Refused(https_only()))?;
+    let found = typed(probe, kind, url, user, password).await?;
+    let kept = found.clone();
+    db.write(move |c| services::save(c, account_id, &kept)).await?;
+    Ok(found)
+}
+
+/// What an address under any scheme but HTTPS is refused with.
+pub(crate) fn https_only() -> String {
+    mailrs_domain::translate::gettext("Penguin Mail reaches calendar and contact servers over HTTPS only.")
+}
+
+/// A CalDAV or CardDAV address as the person typed it, in the form the
+/// client takes: a bare host stands for its root, over HTTPS. `None` for
+/// an address under any other scheme, which nothing is sent to.
+pub(crate) fn https_url(typed: &str) -> Option<String> {
+    let typed = typed.trim();
+    let url = match typed.split_once("://") {
+        Some((scheme, _)) if scheme.eq_ignore_ascii_case("https") => typed.to_string(),
+        Some(_) => return None,
+        None => format!("https://{typed}"),
     };
-    let url = match url.trim_end_matches('/').matches('/').count() {
+    Some(match url.trim_end_matches('/').matches('/').count() {
         // "https://host" becomes "https://host/".
         2 => format!("{}/", url.trim_end_matches('/')),
         _ => url,
-    };
+    })
+}
+
+/// The server at `url` for `kind`, once it took the login. The person
+/// typed the address, which is their yes to sending the password there
+/// and nowhere else. Nothing is kept.
+pub(crate) async fn typed<P: ServiceProbe>(probe: &P, kind: ServiceKind, url: String, user: &str, password: &str) -> Result<FoundService, SyncError> {
     let dav_kind = match kind {
         ServiceKind::CalDav => Kind::Calendar,
         ServiceKind::CardDav => Kind::AddressBook,
@@ -277,10 +297,7 @@ pub async fn use_typed<P: ServiceProbe>(probe: &P, db: &Db, account_id: AccountI
     tokio::time::timeout(PROBE_LIMIT, probe.dav(&url, user, password, dav_kind))
         .await
         .map_err(|_| BackendError::Offline("the server took too long".into()))??;
-    let found = FoundService { kind, url, user_name: user.to_string(), confirmed: true, source: "typed".into() };
-    let kept = found.clone();
-    db.write(move |c| services::save(c, account_id, &kept)).await?;
-    Ok(found)
+    Ok(FoundService { kind, url, user_name: user.to_string(), confirmed: true, source: "typed".into() })
 }
 
 /// The person said yes to the server kept for `kind`: try the login

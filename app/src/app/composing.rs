@@ -26,21 +26,19 @@ pub enum Signature {
 }
 
 /// The account a new message comes from: the one set in Preferences,
-/// else `hint`, the account on screen, else the first.
+/// else `hint`, the account on screen, else the first. Only an account
+/// with mail counts, so a calendar account never writes.
 fn choose_account(
     accounts: &[Account],
     preferred: Option<&str>,
     hint: Option<AccountId>,
 ) -> Option<AccountId> {
+    let writers = mailrs_domain::mail_accounts(accounts);
     preferred
-        .and_then(|email| {
-            accounts
-                .iter()
-                .find(|a| a.email.eq_ignore_ascii_case(email))
-                .map(|a| a.id)
-        })
-        .or_else(|| hint.filter(|id| accounts.iter().any(|account| account.id == *id)))
-        .or_else(|| accounts.first().map(|a| a.id))
+        .and_then(|email| writers.iter().find(|a| a.email.eq_ignore_ascii_case(email)))
+        .or_else(|| hint.and_then(|id| writers.iter().find(|a| a.id == id)))
+        .or(writers.first())
+        .map(|a| a.id)
 }
 
 impl App {
@@ -213,6 +211,25 @@ mod tests {
         let gone = Some("old@example.com");
         assert_eq!(choose_account(&accounts(), gone, Some(2)), Some(2));
         assert_eq!(choose_account(&accounts(), gone, None), Some(1));
+    }
+
+    #[test]
+    fn a_calendar_account_never_writes() {
+        let mut all = accounts();
+        all.insert(
+            0,
+            Account {
+                id: 9,
+                email: "robin@cloud.example.org".into(),
+                state: AccountState::Ok,
+                provider: mailrs_domain::Provider::CalDav,
+                provider_name: None,
+            },
+        );
+        assert_eq!(choose_account(&all, None, None), Some(1), "the first account with mail");
+        assert_eq!(choose_account(&all, Some("robin@cloud.example.org"), None), Some(1));
+        assert_eq!(choose_account(&all, None, Some(9)), Some(1), "nor as the account on screen");
+        assert_eq!(choose_account(&all[..1], None, None), None, "alone, it leaves nobody to write");
     }
 
     #[test]
