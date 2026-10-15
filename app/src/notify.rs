@@ -117,23 +117,15 @@ pub fn settled(message: Option<&MessageMeta>) -> bool {
     message.is_none_or(|m| !m.is_unread() || !m.in_role(Role::Inbox))
 }
 
-/// The tokens among `pending` whose counted messages have all settled,
-/// given what the store holds for them in `found`. A message the store
-/// no longer holds is missing from `found` and counts as settled.
-pub fn to_withdraw(pending: &[(String, Vec<Target>)], found: &[MessageMeta]) -> Vec<String> {
+/// The ids among `asked` whose message has settled, given what the store
+/// holds for them in `found`. A message the store no longer holds is
+/// missing from `found` and counts as settled.
+pub fn settled_among(asked: &[String], found: &[MessageMeta]) -> Vec<String> {
     let found: HashMap<&str, &MessageMeta> = found.iter().map(|m| (m.id.as_str(), m)).collect();
-    pending
+    asked
         .iter()
-        .filter(|(_, counted)| {
-            counted.iter().all(|target| {
-                let message = target
-                    .message_id
-                    .as_deref()
-                    .and_then(|id| found.get(id).copied());
-                settled(message)
-            })
-        })
-        .map(|(token, _)| token.clone())
+        .filter(|id| settled(found.get(id.as_str()).copied()))
+        .cloned()
         .collect()
 }
 
@@ -229,11 +221,15 @@ pub fn parameter(token: &str, key: &str) -> String {
 /// The key a click on the notification itself sends.
 pub const OPEN_KEY: &str = "default";
 
-/// One notification on screen: every message it counted, and the one its
-/// clicks act on, which a summary of several has none of.
+/// One notification on screen: the messages it counted that are still
+/// unread, each as its thread id and message id, and the one its clicks
+/// act on, which a summary of several has none of. A settled message
+/// drops out, so a summary that counted a week of mail shrinks as the
+/// mail is read and asks the store about each message once.
 #[derive(Debug)]
 struct Shown {
-    counted: Vec<Target>,
+    account_id: AccountId,
+    pending: Vec<(String, String)>,
     acts_on: Option<(Target, Vec<Button>)>,
 }
 
@@ -259,7 +255,8 @@ impl Issued {
     /// withdraw: its clicks would do nothing from now on.
     pub fn issue(&mut self, token: String, target: Target, buttons: Vec<Button>) -> Option<String> {
         let shown = Shown {
-            counted: vec![target.clone()],
+            account_id: target.account_id,
+            pending: pending_of(std::slice::from_ref(&target)),
             acts_on: Some((target, buttons)),
         };
         self.keep(token, shown)
@@ -270,7 +267,13 @@ impl Issued {
     /// answers a click; it is kept so the summary can go once every
     /// message it counted is read. Answers an evicted token as `issue`.
     pub fn issue_summary(&mut self, token: String, counted: Vec<Target>) -> Option<String> {
-        self.keep(token, Shown { counted, acts_on: None })
+        let first = counted.first()?;
+        let shown = Shown {
+            account_id: first.account_id,
+            pending: pending_of(&counted),
+            acts_on: None,
+        };
+        self.keep(token, shown)
     }
 
     fn keep(&mut self, token: String, shown: Shown) -> Option<String> {
@@ -287,16 +290,16 @@ impl Issued {
         evicted
     }
 
-    /// The notifications that counted a message in `thread_ids` of
-    /// `account_id`, oldest first: each token and every message it
-    /// counted, since a summary goes only once all of them settled. One
-    /// event can name every thread of a first sync, so the ids go into a
-    /// set once and each kept token looks its threads up there.
+    /// The notifications still waiting on a message in `thread_ids` of
+    /// `account_id`, oldest first: each token with the ids of those
+    /// messages, for the caller to ask the store about. One event can name
+    /// every thread of a first sync, so the ids go into a set once and
+    /// each kept token looks its threads up there.
     pub fn in_threads(
         &self,
         account_id: AccountId,
         thread_ids: &[String],
-    ) -> Vec<(String, Vec<Target>)> {
+    ) -> Vec<(String, Vec<String>)> {
         if self.order.is_empty() {
             return Vec::new();
         }
@@ -305,17 +308,45 @@ impl Issued {
             .iter()
             .filter_map(|token| {
                 let shown = self.shown.get(token)?;
-                shown
-                    .counted
+                if shown.account_id != account_id {
+                    return None;
+                }
+                let asked: Vec<String> = shown
+                    .pending
                     .iter()
-                    .any(|t| t.account_id == account_id && changed.contains(t.thread_id.as_str()))
-                    .then(|| (token.clone(), shown.counted.clone()))
+                    .filter(|(thread_id, _)| changed.contains(thread_id.as_str()))
+                    .map(|(_, message_id)| message_id.clone())
+                    .collect();
+                (!asked.is_empty()).then(|| (token.clone(), asked))
             })
             .collect()
     }
 
+    /// Stops waiting on the messages `settled` for `token`. Answers true
+    /// once nothing is left, having forgotten the token: the caller
+    /// withdraws the notification then.
+    pub fn settle(&mut self, token: &str, settled: &[String]) -> bool {
+        let Some(shown) = self.shown.get_mut(token) else {
+            return false;
+        };
+        shown
+            .pending
+            .retain(|(_, message_id)| !settled.contains(message_id));
+        if !shown.pending.is_empty() {
+            return false;
+        }
+        self.forget(token);
+        true
+    }
+
+    /// How many messages `token` still waits on.
+    #[cfg(test)]
+    fn pending(&self, token: &str) -> usize {
+        self.shown.get(token).map_or(0, |shown| shown.pending.len())
+    }
+
     /// Stops answering for `token`, once its notification is withdrawn.
-    pub fn forget(&mut self, token: &str) {
+    fn forget(&mut self, token: &str) {
         if self.shown.remove(token).is_some() {
             self.order.retain(|kept| kept != token);
         }
@@ -329,6 +360,15 @@ impl Issued {
         let choice = choice_of(key, buttons)?;
         Some(Request { target: target.clone(), choice })
     }
+}
+
+/// The thread and message id of each target, for a notification to wait
+/// on. Every target a notice counts names its message.
+fn pending_of(targets: &[Target]) -> Vec<(String, String)> {
+    targets
+        .iter()
+        .filter_map(|t| Some((t.thread_id.clone(), t.message_id.clone()?)))
+        .collect()
 }
 
 /// The choice an action key stands for, among the buttons a notification
@@ -441,7 +481,7 @@ mod tests {
         other.account_id = 2;
         issued.issue("tok3".into(), other, vec![]);
         let found = issued.in_threads(1, &["t1".to_string(), "t9".to_string()]);
-        assert_eq!(found, vec![("tok1".to_string(), vec![thread("t1")])]);
+        assert_eq!(found, vec![("tok1".to_string(), vec!["t1-m".to_string()])]);
         assert!(issued.in_threads(3, &["t1".to_string()]).is_empty());
     }
 
@@ -449,12 +489,12 @@ mod tests {
     fn a_withdrawn_notification_stops_answering() {
         let mut issued = Issued::default();
         issued.issue("tok1".into(), thread("t1"), vec![Button::Reply]);
-        issued.forget("tok1");
+        assert!(issued.settle("tok1", &["t1-m".to_string()]));
         assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
         assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
-        // A token never issued, or forgotten twice, is nothing to forget.
-        issued.forget("never");
-        issued.forget("tok1");
+        // A token never issued, or settled twice, is nothing to settle.
+        assert!(!issued.settle("never", &["t1-m".to_string()]));
+        assert!(!issued.settle("tok1", &["t1-m".to_string()]));
         assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
     }
 
@@ -476,16 +516,25 @@ mod tests {
     #[test]
     fn a_thread_change_withdraws_the_notifications_whose_mail_settled() {
         use mailrs_sync::fake::meta;
-        let pending = vec![
-            ("read".to_string(), vec![thread("t1")]),
-            ("kept".to_string(), vec![thread("t2")]),
-            ("gone".to_string(), vec![thread("t3")]),
-        ];
+        let mut issued = Issued::default();
+        issued.issue("read".into(), thread("t1"), vec![]);
+        issued.issue("kept".into(), thread("t2"), vec![]);
+        issued.issue("gone".into(), thread("t3"), vec![]);
+        let asked = issued.in_threads(1, &["t1".into(), "t2".into(), "t3".into()]);
+        let ids: Vec<String> = asked.iter().flat_map(|(_, ids)| ids.clone()).collect();
+        assert_eq!(ids, ["t1-m", "t2-m", "t3-m"]);
         let found = vec![
             meta("t1-m", "t1", 0, &["INBOX"]),
             meta("t2-m", "t2", 0, &["INBOX", "UNREAD"]),
         ];
-        assert_eq!(to_withdraw(&pending, &found), ["read", "gone"]);
+        let withdrawn: Vec<String> = asked
+            .into_iter()
+            .filter(|(token, ids)| issued.settle(token, &settled_among(ids, &found)))
+            .map(|(token, _)| token)
+            .collect();
+        assert_eq!(withdrawn, ["read", "gone"]);
+        assert_eq!(issued.request(&parameter("read", OPEN_KEY)), None, "withdrawn, so forgotten");
+        assert!(issued.request(&parameter("kept", OPEN_KEY)).is_some());
     }
 
     /// A summary of several messages has no body action and no buttons,
@@ -499,27 +548,44 @@ mod tests {
         assert_eq!(issued.request(&parameter("sum", Button::Archive.key())), None);
     }
 
-    /// A change to any thread the summary counted finds it, with every
-    /// message it counted, and it goes only once all of them settled.
+    /// A change to one thread the summary counted asks only for that
+    /// thread's message. Once it settles it drops out, so a later change
+    /// to the same thread asks for nothing, and the summary goes when
+    /// the last message it counted has settled.
     #[test]
     fn a_summary_goes_once_every_message_it_counted_settled() {
         use mailrs_sync::fake::meta;
         let mut issued = Issued::default();
+        issued.issue_summary("sum".into(), vec![thread("t1"), thread("t2"), thread("t3")]);
+        let asked = issued.in_threads(1, &["t2".to_string()]);
+        assert_eq!(asked, vec![("sum".to_string(), vec!["t2-m".to_string()])]);
+
+        let still_unread = vec![meta("t2-m", "t2", 0, &["INBOX", "UNREAD"])];
+        assert!(!issued.settle("sum", &settled_among(&asked[0].1, &still_unread)));
+        assert_eq!(issued.in_threads(1, &["t2".to_string()]), asked, "still waited on");
+
+        let read = vec![meta("t2-m", "t2", 0, &["INBOX"])];
+        assert!(!issued.settle("sum", &settled_among(&asked[0].1, &read)), "two are left");
+        assert!(issued.in_threads(1, &["t2".to_string()]).is_empty(), "nothing is read twice");
+
+        let asked = issued.in_threads(1, &["t1".to_string(), "t3".to_string()]);
+        assert_eq!(asked, vec![("sum".to_string(), vec!["t1-m".to_string(), "t3-m".to_string()])]);
+        let one_gone = vec![meta("t1-m", "t1", 0, &[])];
+        assert_eq!(settled_among(&asked[0].1, &one_gone), ["t1-m", "t3-m"], "mail the store dropped counts as settled");
+        assert!(issued.settle("sum", &["t1-m".to_string(), "t3-m".to_string()]), "the last one went");
+        assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn a_summary_keeps_only_what_it_still_waits_on() {
+        let mut issued = Issued::default();
         issued.issue_summary("sum".into(), vec![thread("t1"), thread("t2")]);
-        let found = issued.in_threads(1, &["t2".to_string()]);
-        assert_eq!(found, vec![("sum".to_string(), vec![thread("t1"), thread("t2")])]);
-
-        let one_read = vec![
-            meta("t1-m", "t1", 0, &["INBOX"]),
-            meta("t2-m", "t2", 0, &["INBOX", "UNREAD"]),
-        ];
-        assert!(to_withdraw(&found, &one_read).is_empty(), "one is still unread");
-
-        let both_read = vec![meta("t1-m", "t1", 0, &["INBOX"]), meta("t2-m", "t2", 0, &[])];
-        assert_eq!(to_withdraw(&found, &both_read), ["sum"]);
-
-        let one_gone = vec![meta("t1-m", "t1", 0, &["INBOX"])];
-        assert_eq!(to_withdraw(&found, &one_gone), ["sum"], "mail the store dropped counts as settled");
+        assert_eq!(issued.pending("sum"), 2);
+        assert!(!issued.settle("sum", &["t1-m".to_string()]));
+        assert_eq!(issued.pending("sum"), 1);
+        assert!(!issued.settle("sum", &["never".to_string()]), "an id it never counted changes nothing");
+        assert_eq!(issued.pending("sum"), 1);
+        assert!(!issued.settle("never", &["t2-m".to_string()]), "a token never issued is nothing to settle");
     }
 
     #[test]

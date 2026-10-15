@@ -1387,18 +1387,18 @@ impl App {
     /// Takes back the notifications for mail in `thread_ids` that was read,
     /// archived or trashed since it arrived, here or on another device.
     /// The desktop keeps a notification until the app withdraws it, long
-    /// after the mail it announced was read in the window.
+    /// after the mail it announced was read in the window. Only the
+    /// messages still waited on in those threads are read from the store;
+    /// each that settled drops out, and a notification goes once none
+    /// is left.
     fn settle_notifications(self: &Rc<Self>, account_id: AccountId, thread_ids: &[String]) {
-        let pending = self.issued.borrow().in_threads(account_id, thread_ids);
-        if pending.is_empty() {
+        let asked = self.issued.borrow().in_threads(account_id, thread_ids);
+        if asked.is_empty() {
             return;
         }
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
-            let ids: Vec<String> = pending
-                .iter()
-                .flat_map(|(_, counted)| counted.iter().filter_map(|t| t.message_id.clone()))
-                .collect();
+            let ids: Vec<String> = asked.iter().flat_map(|(_, ids)| ids.clone()).collect();
             let found = this
                 .core
                 .read(move |c| messages::by_ids(c, account_id, &ids))
@@ -1410,9 +1410,11 @@ impl App {
                     return;
                 }
             };
-            for token in notify::to_withdraw(&pending, &found) {
-                this.gio.withdraw_notification(&token);
-                this.issued.borrow_mut().forget(&token);
+            for (token, ids) in asked {
+                let settled = notify::settled_among(&ids, &found);
+                if this.issued.borrow_mut().settle(&token, &settled) {
+                    this.gio.withdraw_notification(&token);
+                }
             }
         });
     }
