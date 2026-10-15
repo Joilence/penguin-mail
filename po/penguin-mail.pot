@@ -910,7 +910,7 @@ msgstr ""
 msgid "Continue opens {provider}'s sign-in page in your browser."
 msgstr ""
 
-#: app/src/app.rs:408
+#: app/src/app.rs:413
 msgid ""
 "Your preferences could not be read, so Penguin Mail started from the "
 "defaults. The old file is kept as {file}."
@@ -920,53 +920,53 @@ msgstr ""
 msgid "That account is not connected. Check its status in the sidebar."
 msgstr ""
 
-#: app/src/app/sending.rs:129 app/src/app/sending.rs:164
+#: app/src/app/sending.rs:129 app/src/app/sending.rs:165
 msgid "Could not build the message: {reason}"
 msgstr ""
 
-#: app/src/app/sending.rs:185 app/src/app/sending.rs:237
+#: app/src/app/sending.rs:186 app/src/app/sending.rs:238
 msgid "Not encrypted, so not sent: {reason}"
 msgstr ""
 
-#: app/src/app/sending.rs:238
+#: app/src/app/sending.rs:239
 msgid "Not signed, so not sent: {reason}"
 msgstr ""
 
-#: app/src/app/sending.rs:266 app/src/app/sending.rs:290
-#: app/src/app/sending.rs:295
+#: app/src/app/sending.rs:267 app/src/app/sending.rs:291
+#: app/src/app/sending.rs:296
 msgid "Not sent: {reason}"
 msgstr ""
 
-#: app/src/app/sending.rs:277
+#: app/src/app/sending.rs:278
 msgid "Message sent"
 msgstr ""
 
-#: app/src/app/sending.rs:285
+#: app/src/app/sending.rs:286
 msgid "Waiting in the Outbox. It goes out as soon as it can."
 msgstr ""
 
-#: app/src/app/sending.rs:320 app/src/app/sending.rs:328
-#: app/src/app/sending.rs:341
+#: app/src/app/sending.rs:321 app/src/app/sending.rs:332
+#: app/src/app/sending.rs:345
 msgid "Not scheduled: {reason}"
 msgstr ""
 
-#: app/src/app/sending.rs:334
+#: app/src/app/sending.rs:338
 msgid "Will send {when}"
 msgstr ""
 
-#: app/src/app/sending.rs:392
+#: app/src/app/sending.rs:396
 msgid "Sent {message}"
 msgstr ""
 
-#: app/src/app/sending.rs:401
+#: app/src/app/sending.rs:405
 msgid "Still in the Outbox: {message}"
 msgstr ""
 
-#: app/src/app/sending.rs:509
+#: app/src/app/sending.rs:513
 msgid "your message"
 msgstr ""
 
-#: app/src/app/sending.rs:511
+#: app/src/app/sending.rs:515
 msgid "“{subject}”"
 msgstr ""
 
@@ -2252,17 +2252,17 @@ msgstr ""
 msgid "Reply"
 msgstr ""
 
-#: app/src/notify.rs:164
+#: app/src/notify.rs:155
 msgid "{count} new message"
 msgid_plural "{count} new messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: app/src/notify.rs:182 app/src/ui/window/shortcuts.rs:463
+#: app/src/notify.rs:173 app/src/ui/window/shortcuts.rs:463
 msgid "New message"
 msgstr ""
 
-#: app/src/notify.rs:199
+#: app/src/notify.rs:190
 msgid "From {senders}"
 msgstr ""
 

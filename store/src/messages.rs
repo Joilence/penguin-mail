@@ -686,6 +686,34 @@ pub fn memberships_of(
     Ok(held)
 }
 
+/// Which of `ids` are still unread and in the Inbox: what a new-mail
+/// notification waits on. Answered from the membership tables alone, so
+/// a check over thousands of ids after a change builds no metadata.
+pub fn unread_in_inbox(
+    conn: &Connection,
+    account_id: AccountId,
+    ids: &[String],
+) -> Result<HashSet<String>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT l.message_id FROM message_mailboxes l \
+         CROSS JOIN mailboxes b ON b.key = l.mailbox \
+         WHERE l.account_id = ?1 AND b.role = ?3 \
+         AND l.message_id IN (SELECT value FROM json_each(?2)) \
+         AND NOT EXISTS (SELECT 1 FROM message_keywords k \
+         WHERE k.account_id = l.account_id AND k.message_id = l.message_id AND k.keyword = ?4)",
+    )?;
+    let rows = stmt.query_map(
+        params![
+            account_id,
+            json_list(ids),
+            Role::Inbox.as_str(),
+            keyword::SEEN
+        ],
+        |row| row.get::<_, String>(0),
+    )?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 fn message_row(row: &rusqlite::Row) -> rusqlite::Result<MessageRow> {
     Ok(MessageRow {
         id: row.get(0)?,

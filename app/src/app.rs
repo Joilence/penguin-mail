@@ -1396,9 +1396,11 @@ impl App {
     /// archived or trashed since it arrived, here or on another device.
     /// The desktop keeps a notification until the app withdraws it, long
     /// after the mail it announced was read in the window. Only the
-    /// messages still waited on in those threads are read from the store;
-    /// each that settled drops out, and a notification goes once none
-    /// is left.
+    /// messages still waited on in those threads are asked about, as ids
+    /// alone: a summary after days away waits on thousands, and the
+    /// store answers from its membership tables without building a row.
+    /// Each that settled drops out, and a notification goes once none is
+    /// left.
     fn settle_notifications(self: &Rc<Self>, account_id: AccountId, thread_ids: &[String]) {
         let asked = self.issued.borrow().in_threads(account_id, thread_ids);
         if asked.is_empty() {
@@ -1407,19 +1409,19 @@ impl App {
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
             let ids: Vec<String> = asked.iter().flat_map(|(_, ids)| ids.clone()).collect();
-            let found = this
+            let still = this
                 .core
-                .read(move |c| messages::by_ids(c, account_id, &ids))
+                .read(move |c| messages::unread_in_inbox(c, account_id, &ids))
                 .await;
-            let found = match found {
-                Ok(found) => found,
+            let still = match still {
+                Ok(still) => still,
                 Err(err) => {
                     tracing::warn!(error = %err, "could not read the mail behind a notification");
                     return;
                 }
             };
             for (token, ids) in asked {
-                let settled = notify::settled_among(&ids, &found);
+                let settled = notify::settled_among(&ids, &still);
                 if this.issued.borrow_mut().settle(&token, &settled) {
                     this.gio.withdraw_notification(&token);
                 }
@@ -1493,20 +1495,18 @@ impl App {
             if let Err(err) = this.core.run_rules(account_id).await {
                 tracing::warn!(account = account_id, %err, "local rules did not run");
             }
-            let ids = message_ids.clone();
-            let kept = this
+            // The rows read here are the ones announced, rather than
+            // their ids read again: thousands can arrive in one event
+            // after days away, and each row is built from its JSON.
+            match this
                 .core
-                .read(move |c| {
-                    Ok(messages::by_ids(c, account_id, &ids)?
-                        .into_iter()
-                        .filter(|m| still_news(m.in_role(Role::Inbox), m.is_unread()))
-                        .map(|m| m.id)
-                        .collect::<Vec<String>>())
-                })
+                .read(move |c| announced(c, account_id, &message_ids))
                 .await
-                .unwrap_or(message_ids);
-            if !kept.is_empty() {
-                this.announce(account_id, kept);
+            {
+                Ok(found) => this.announce_found(found),
+                Err(err) => {
+                    tracing::warn!(account = account_id, %err, "could not read the mail behind a notification")
+                }
             }
         });
     }
@@ -1611,39 +1611,54 @@ impl App {
         dialog.present(Some(&window.window));
     }
 
+    /// Reads the mail behind `message_ids` and announces what deserves
+    /// it. An account whose rules run here goes through
+    /// [`Self::announce_found`] instead, with the rows it read already.
     fn announce(self: &Rc<Self>, account_id: AccountId, message_ids: Vec<String>) {
+        if self.core.demo || !self.settings().notifications {
+            return;
+        }
+        let this = Rc::clone(self);
+        glib::spawn_future_local(async move {
+            match this
+                .core
+                .read(move |c| announced(c, account_id, &message_ids))
+                .await
+            {
+                Ok(found) => this.announce_found(found),
+                Err(err) => {
+                    tracing::warn!(account = account_id, %err, "could not read the mail behind a notification")
+                }
+            }
+        });
+    }
+
+    /// Announces the new mail among `found`, as the store holds it now.
+    fn announce_found(&self, mut found: Vec<mailrs_domain::MessageMeta>) {
         let settings = self.settings();
         if self.core.demo || !settings.notifications {
             return;
         }
-        let previews = settings.notification_previews;
-        let buttons = settings.notification_buttons.clone();
-        let this = Rc::clone(self);
-        glib::spawn_future_local(async move {
-            let found = this
-                .core
-                .read(move |c| announced(c, account_id, &message_ids))
-                .await;
-            let Ok(mut found) = found else {
-                return;
-            };
-            // Mail read or filed between the engine's word and this read
-            // would get a notification nothing withdraws, so it gets none.
-            // Nor does mail in the conversation on screen, which the
-            // person is looking at; the rest is announced even while the
-            // window has focus, as the mail that came while the app was
-            // closed arrives right after it opens.
-            let viewed = this.window().and_then(|w| w.viewed());
-            found.retain(|m| {
-                still_news(m.in_role(Role::Inbox), m.is_unread())
-                    && (!settings.notify_vips_only
-                        || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email)))
-                    && !in_view(m, viewed.as_ref())
-            });
-            if !found.is_empty() {
-                this.announce_mail(found, previews, buttons);
-            }
+        // Mail read or filed between the engine's word and the read would
+        // get a notification nothing withdraws, so it gets none. Nor does
+        // mail in the conversation on screen, which the person is looking
+        // at; the rest is announced even while the window has focus, as
+        // the mail that came while the app was closed arrives right after
+        // it opens.
+        let viewed = self.window().and_then(|w| w.viewed());
+        found.retain(|m| {
+            still_news(m.in_role(Role::Inbox), m.is_unread())
+                && (!settings.notify_vips_only
+                    || m.from.as_ref().is_some_and(|a| settings.is_vip(&a.email)))
+                && !in_view(m, viewed.as_ref())
         });
+        if !found.is_empty() {
+            self.announce_mail(
+                found,
+                settings.notification_previews,
+                settings.notification_buttons.clone(),
+            );
+        }
     }
 
     /// Registers the tray icon whenever a tray host appears on the session

@@ -109,22 +109,13 @@ pub fn still_applies(button: Button, message: &MessageMeta) -> bool {
     }
 }
 
-/// Whether the notification for `message` has nothing left to say: the
-/// mail is read, out of the inbox it was announced in, or gone from the
-/// store. The desktop keeps a notification until the app takes it back,
-/// so reading the mail here or on another device withdraws it.
-pub fn settled(message: Option<&MessageMeta>) -> bool {
-    message.is_none_or(|m| !m.is_unread() || !m.in_role(Role::Inbox))
-}
-
-/// The ids among `asked` whose message has settled, given what the store
-/// holds for them in `found`. A message the store no longer holds is
-/// missing from `found` and counts as settled.
-pub fn settled_among(asked: &[String], found: &[MessageMeta]) -> Vec<String> {
-    let found: HashMap<&str, &MessageMeta> = found.iter().map(|m| (m.id.as_str(), m)).collect();
+/// The ids among `asked` that have settled, given `still`, the ids the
+/// store says are unread and in the Inbox now. Everything else counts:
+/// mail read, filed elsewhere, or no longer held.
+pub fn settled_among(asked: &[String], still: &HashSet<String>) -> Vec<String> {
     asked
         .iter()
-        .filter(|id| settled(found.get(id.as_str()).copied()))
+        .filter(|id| !still.contains(*id))
         .cloned()
         .collect()
 }
@@ -499,16 +490,9 @@ mod tests {
         assert_eq!(issued.request(&parameter("tok1", OPEN_KEY)), None);
     }
 
-    #[test]
-    fn a_notification_settles_once_its_mail_is_read_moved_or_gone() {
-        use mailrs_sync::fake::meta;
-        let unread_in_inbox = meta("m1", "t1", 0, &["INBOX", "UNREAD"]);
-        let read_in_inbox = meta("m2", "t1", 0, &["INBOX"]);
-        let archived_unread = meta("m3", "t1", 0, &["UNREAD"]);
-        assert!(!settled(Some(&unread_in_inbox)));
-        assert!(settled(Some(&read_in_inbox)));
-        assert!(settled(Some(&archived_unread)));
-        assert!(settled(None), "mail the store no longer holds");
+    /// The ids the store would answer as still unread in the Inbox.
+    fn still(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|id| id.to_string()).collect()
     }
 
     /// A ThreadsChanged arrives, the store says one message was read and
@@ -516,7 +500,6 @@ mod tests {
     /// the inbox stays on screen.
     #[test]
     fn a_thread_change_withdraws_the_notifications_whose_mail_settled() {
-        use mailrs_sync::fake::meta;
         let mut issued = Issued::default();
         issued.issue("read".into(), thread("t1"), vec![]);
         issued.issue("kept".into(), thread("t2"), vec![]);
@@ -524,10 +507,7 @@ mod tests {
         let asked = issued.in_threads(1, &["t1".into(), "t2".into(), "t3".into()]);
         let ids: Vec<String> = asked.iter().flat_map(|(_, ids)| ids.clone()).collect();
         assert_eq!(ids, ["t1-m", "t2-m", "t3-m"]);
-        let found = vec![
-            meta("t1-m", "t1", 0, &["INBOX"]),
-            meta("t2-m", "t2", 0, &["INBOX", "UNREAD"]),
-        ];
+        let found = still(&["t2-m"]);
         let withdrawn: Vec<String> = asked
             .into_iter()
             .filter(|(token, ids)| issued.settle(token, &settled_among(ids, &found)))
@@ -555,23 +535,22 @@ mod tests {
     /// the last message it counted has settled.
     #[test]
     fn a_summary_goes_once_every_message_it_counted_settled() {
-        use mailrs_sync::fake::meta;
         let mut issued = Issued::default();
         issued.issue_summary("sum".into(), vec![thread("t1"), thread("t2"), thread("t3")]);
         let asked = issued.in_threads(1, &["t2".to_string()]);
         assert_eq!(asked, vec![("sum".to_string(), vec!["t2-m".to_string()])]);
 
-        let still_unread = vec![meta("t2-m", "t2", 0, &["INBOX", "UNREAD"])];
+        let still_unread = still(&["t2-m"]);
         assert!(!issued.settle("sum", &settled_among(&asked[0].1, &still_unread)));
         assert_eq!(issued.in_threads(1, &["t2".to_string()]), asked, "still waited on");
 
-        let read = vec![meta("t2-m", "t2", 0, &["INBOX"])];
+        let read = still(&[]);
         assert!(!issued.settle("sum", &settled_among(&asked[0].1, &read)), "two are left");
         assert!(issued.in_threads(1, &["t2".to_string()]).is_empty(), "nothing is read twice");
 
         let asked = issued.in_threads(1, &["t1".to_string(), "t3".to_string()]);
         assert_eq!(asked, vec![("sum".to_string(), vec!["t1-m".to_string(), "t3-m".to_string()])]);
-        let one_gone = vec![meta("t1-m", "t1", 0, &[])];
+        let one_gone = still(&[]);
         assert_eq!(settled_among(&asked[0].1, &one_gone), ["t1-m", "t3-m"], "mail the store dropped counts as settled");
         assert!(issued.settle("sum", &["t1-m".to_string(), "t3-m".to_string()]), "the last one went");
         assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
