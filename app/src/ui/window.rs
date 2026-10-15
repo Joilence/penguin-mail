@@ -1073,9 +1073,11 @@ impl MainWindow {
 
     /// The conversation the person is looking at: the one on screen while
     /// the window has focus. `None` while the window is unfocused or
-    /// hidden, or shows no conversation.
+    /// hidden, shows no conversation, or keeps one open behind the
+    /// Calendar space or a narrow window's list, where its page is not
+    /// mapped.
     pub fn viewed(&self) -> Option<Target> {
-        if !self.is_active() {
+        if !self.is_active() || !self.conversation.page.is_mapped() {
             return None;
         }
         self.conversation.read(OpenThread::target)
