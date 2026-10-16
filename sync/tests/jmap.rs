@@ -1065,7 +1065,13 @@ impl<'a> Run<'a> {
         use mailrs_domain::calendar::{Event, Notify, occurrence_id};
         const HOUR: i64 = 3_600_000;
         const WEEK: i64 = 7 * 86_400_000;
-        let start = start - start % HOUR;
+        const DAY: i64 = 86_400_000;
+        // Midday on its day, so no occurrence, before or after the move,
+        // falls on an hour a clock change skips or repeats. Moved from
+        // 00:00 to 01:00 on the night Lisbon's clocks go back, the changed
+        // occurrence lands on an hour that happens twice, and Stalwart then
+        // drops it while Cyrus keeps it.
+        let start = start - start % DAY + 12 * HOUR;
         let series = Event {
             calendar: home.to_string(),
             uid: self.id("weekly"),
