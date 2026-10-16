@@ -2477,7 +2477,7 @@ msgstr ""
 msgid "{language} ({country})"
 msgstr "{language} ({country})"
 
-#: app/src/main.rs:98
+#: app/src/main.rs:100
 msgid ""
 "Usage: penguin-mail [--background] [--demo] [--compose [mailto:ADDRESS]] "
 "[FILE.ics]\n"
@@ -2501,15 +2501,15 @@ msgstr ""
 "  DATEI.ics      eine Kalenderdatei öffnen, um ihre Termine zu einem "
 "Kalender hinzuzufügen"
 
-#: app/src/main.rs:182
+#: app/src/main.rs:186
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail: Unbekannte Option {option}"
 
-#: app/src/main.rs:368
+#: app/src/main.rs:382
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail konnte nicht starten"
 
-#: app/src/main.rs:373 app/src/ui/about.rs:181
+#: app/src/main.rs:387 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Problem melden"
 
@@ -3143,25 +3143,29 @@ msgstr ""
 msgid "The model could not translate this: {reason}"
 msgstr "Das Modell konnte dies nicht übersetzen: {reason}"
 
-#: app/src/packaging.rs:106
+#: app/src/packaging.rs:127
 msgid "Updates come from dnf"
 msgstr "Aktualisierungen kommen über dnf"
 
-#: app/src/packaging.rs:107
+#: app/src/packaging.rs:128
 msgid "Updates come from pacman"
 msgstr "Aktualisierungen kommen über pacman"
 
-#: app/src/packaging.rs:108
+#: app/src/packaging.rs:129
 msgid "Updates come from Flathub"
 msgstr "Aktualisierungen kommen über Flathub"
 
-#: app/src/packaging.rs:109
+#: app/src/packaging.rs:130
 msgid "Updates come from the Snap Store"
 msgstr "Aktualisierungen kommen über den Snap Store"
 
-#: app/src/packaging.rs:110
+#: app/src/packaging.rs:131
 msgid "Updates come from Nix"
 msgstr "Aktualisierungen kommen über Nix"
+
+#: app/src/packaging.rs:132
+msgid "Download a new AppImage to update"
+msgstr "Laden Sie ein neues AppImage herunter, um zu aktualisieren"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

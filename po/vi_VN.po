@@ -2348,7 +2348,7 @@ msgstr ""
 msgid "{language} ({country})"
 msgstr "{language} ({country})"
 
-#: app/src/main.rs:98
+#: app/src/main.rs:100
 msgid ""
 "Usage: penguin-mail [--background] [--demo] [--compose [mailto:ADDRESS]] "
 "[FILE.ics]\n"
@@ -2370,15 +2370,15 @@ msgstr ""
 "  mailto:...     giống --compose mailto:...\n"
 "  FILE.ics       mở tệp lịch để thêm các sự kiện vào lịch"
 
-#: app/src/main.rs:182
+#: app/src/main.rs:186
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail: tùy chọn không xác định {option}"
 
-#: app/src/main.rs:368
+#: app/src/main.rs:382
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail không thể khởi động"
 
-#: app/src/main.rs:373 app/src/ui/about.rs:181
+#: app/src/main.rs:387 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Báo cáo sự cố"
 
@@ -2964,25 +2964,29 @@ msgstr "Mô hình không trả về nội dung để đưa vào thư."
 msgid "The model could not translate this: {reason}"
 msgstr "Mô hình không thể dịch nội dung này: {reason}"
 
-#: app/src/packaging.rs:106
+#: app/src/packaging.rs:127
 msgid "Updates come from dnf"
 msgstr "Bản cập nhật đến từ dnf"
 
-#: app/src/packaging.rs:107
+#: app/src/packaging.rs:128
 msgid "Updates come from pacman"
 msgstr "Bản cập nhật đến từ pacman"
 
-#: app/src/packaging.rs:108
+#: app/src/packaging.rs:129
 msgid "Updates come from Flathub"
 msgstr "Bản cập nhật đến từ Flathub"
 
-#: app/src/packaging.rs:109
+#: app/src/packaging.rs:130
 msgid "Updates come from the Snap Store"
 msgstr "Bản cập nhật đến từ Snap Store"
 
-#: app/src/packaging.rs:110
+#: app/src/packaging.rs:131
 msgid "Updates come from Nix"
 msgstr "Bản cập nhật đến từ Nix"
+
+#: app/src/packaging.rs:132
+msgid "Download a new AppImage to update"
+msgstr "Tải AppImage mới về để cập nhật"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

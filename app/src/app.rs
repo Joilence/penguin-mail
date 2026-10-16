@@ -1287,7 +1287,14 @@ impl App {
             return;
         };
         let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
-        match std::process::Command::new(exe).args(args).spawn() {
+        let mut command = std::process::Command::new(exe);
+        command.args(args);
+        if crate::exe::restarts_in_place() {
+            let err = self.exec_into(command);
+            tracing::warn!(error = %err, "could not restart in place");
+            return;
+        }
+        match command.spawn() {
             Ok(_) => self.quit(),
             Err(err) => tracing::warn!(error = %err, "could not start the new copy"),
         }

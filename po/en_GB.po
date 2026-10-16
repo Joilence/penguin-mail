@@ -2152,7 +2152,7 @@ msgstr "Penguin Mail cannot save sign-ins until the snap can reach your keyring.
 msgid "{language} ({country})"
 msgstr "{language} ({country})"
 
-#: app/src/main.rs:98
+#: app/src/main.rs:100
 msgid ""
 "Usage: penguin-mail [--background] [--demo] [--compose [mailto:ADDRESS]] [FILE.ics]\n"
 "\n"
@@ -2172,15 +2172,15 @@ msgstr ""
 "  mailto:...     the same as --compose mailto:...\n"
 "  FILE.ics       open a calendar file, to add its events to a calendar"
 
-#: app/src/main.rs:182
+#: app/src/main.rs:186
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail: unknown option {option}"
 
-#: app/src/main.rs:368
+#: app/src/main.rs:382
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail Could Not Start"
 
-#: app/src/main.rs:373 app/src/ui/about.rs:181
+#: app/src/main.rs:387 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Report a Problem"
 
@@ -2697,25 +2697,29 @@ msgstr "The model sent nothing back to put in the message."
 msgid "The model could not translate this: {reason}"
 msgstr "The model could not translate this: {reason}"
 
-#: app/src/packaging.rs:106
+#: app/src/packaging.rs:127
 msgid "Updates come from dnf"
 msgstr "Updates come from dnf"
 
-#: app/src/packaging.rs:107
+#: app/src/packaging.rs:128
 msgid "Updates come from pacman"
 msgstr "Updates come from pacman"
 
-#: app/src/packaging.rs:108
+#: app/src/packaging.rs:129
 msgid "Updates come from Flathub"
 msgstr "Updates come from Flathub"
 
-#: app/src/packaging.rs:109
+#: app/src/packaging.rs:130
 msgid "Updates come from the Snap Store"
 msgstr "Updates come from the Snap Store"
 
-#: app/src/packaging.rs:110
+#: app/src/packaging.rs:131
 msgid "Updates come from Nix"
 msgstr "Updates come from Nix"
+
+#: app/src/packaging.rs:132
+msgid "Download a new AppImage to update"
+msgstr "Download a new AppImage to update"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

@@ -89,6 +89,7 @@ zbus = { version = "5", default-features = false, features = ["tokio"] }
 # The kind of package a build is for; see src/packaging.rs. A plain build
 # is the .deb or the tarball.
 [features]
+packaging-appimage = []
 packaging-rpm = []
 packaging-arch = []
 packaging-nix = []
