@@ -38,7 +38,7 @@ jobs:
           scripts/ci-deps.sh
           apt-get install -y --no-install-recommends python3 libglib2.0-bin \
               libgl1-mesa-dri libegl-mesa0 libgles2 glib-networking glycin-loaders \
-              adwaita-icon-theme fonts-dejavu-core fontconfig-config
+              adwaita-icon-theme fonts-dejavu-core fonts-dejavu-mono fontconfig-config
       - name: Put cargo on PATH
         run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Read the version
@@ -87,9 +87,43 @@ jobs:
         with:
           name: penguin-mail-${{ needs.build.outputs.version }}-appimage
           path: dist
+      # The containers share the runner's kernel and AppArmor, and the
+      # runner's Ubuntu 24.04 stops bubblewrap. The job below tests that.
+      - name: Allow user namespaces for the containers
+        run: |
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Test the artifact
         env:
           BASE_IMAGE: ${{ matrix.image }}
         run: |
           chmod +x dist/*.AppImage
           scripts/test-appimage.sh dist/*.AppImage "$BASE_IMAGE"
+
+  blocked:
+    name: Ubuntu 24.04's sandbox rules
+    needs: build
+    # The runner itself, not a container: a stock Ubuntu 24.04, where
+    # AppArmor stops bubblewrap for any program no profile names.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: penguin-mail-${{ needs.build.outputs.version }}-appimage
+          path: dist
+      - name: Install the desktop pieces
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth bubblewrap \
+              at-spi2-core python3-gi gir1.2-atspi-2.0 libglib2.0-bin
+      - name: The app shows the command, and the command allows it
+        run: |
+          chmod +x dist/*.AppImage
+          home=$(mktemp -d)
+          HOME=$home GDK_BACKEND=x11 GSK_RENDERER=cairo \
+              xvfb-run -a dbus-run-session -- python3 packaging/appimage/blocked.py dist/*.AppImage

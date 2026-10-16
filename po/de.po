@@ -2505,11 +2505,11 @@ msgstr ""
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail: Unbekannte Option {option}"
 
-#: app/src/main.rs:382
+#: app/src/main.rs:389
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail konnte nicht starten"
 
-#: app/src/main.rs:387 app/src/ui/about.rs:181
+#: app/src/main.rs:394 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Problem melden"
 
@@ -4604,11 +4604,13 @@ msgstr "Protokoll anzeigen"
 msgid "The update to {version} failed"
 msgstr "Die Aktualisierung auf {version} ist fehlgeschlagen"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:125
+#: app/src/ui/sandbox_setup.rs:132 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "Befehl kopieren"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/window.rs:1384
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:139
+#: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "Befehl kopiert"
 
@@ -5348,7 +5350,7 @@ msgstr ""
 msgid "Name"
 msgstr "Name"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:121
 msgid "Command"
 msgstr "Befehl"
 
@@ -8611,7 +8613,7 @@ msgstr ""
 "Dieser Link enthält unsichtbare Zeichen oder Zeichen, die die Textrichtung "
 "ändern."
 
-#: app/src/ui/mod.rs:466
+#: app/src/ui/mod.rs:468
 msgid "Gray"
 msgstr "Grau"
 
@@ -9413,6 +9415,52 @@ msgstr ""
 #: app/src/ui/rules.rs:697
 msgid "Replace"
 msgstr "Ersetzen"
+
+#: app/src/ui/sandbox_setup.rs:30
+msgid "Check Again"
+msgstr "Erneut prüfen"
+
+#: app/src/ui/sandbox_setup.rs:37
+msgid "Allow Penguin Mail's Sandbox"
+msgstr "Die Sandbox von Penguin Mail erlauben"
+
+#: app/src/ui/sandbox_setup.rs:39
+msgid ""
+"Penguin Mail opens every message in a sandbox, and this system lets an app "
+"start one only when it is allowed. Run this in a terminal once to allow this "
+"copy, then choose Check Again."
+msgstr ""
+"Penguin Mail öffnet jede Nachricht in einer Sandbox, und dieses System lässt "
+"eine App nur dann eine starten, wenn sie dafür freigegeben ist. Führen Sie "
+"dies einmal in einem Terminal aus, um diese Kopie freizugeben, und wählen "
+"Sie dann Erneut prüfen."
+
+#: app/src/ui/sandbox_setup.rs:48
+msgid "Install Bubblewrap"
+msgstr "Bubblewrap installieren"
+
+#: app/src/ui/sandbox_setup.rs:50
+msgid ""
+"Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
+"the bubblewrap package, then choose Check Again."
+msgstr ""
+"Penguin Mail öffnet jede Nachricht in einer Sandbox, die Bubblewrap "
+"erstellt. Installieren Sie das Paket bubblewrap und wählen Sie dann Erneut "
+"prüfen."
+
+#: app/src/ui/sandbox_setup.rs:62
+msgid ""
+"Or install Penguin Mail from <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> or the <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."
+msgstr ""
+"Oder installieren Sie Penguin Mail über <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> oder den <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, die keine Einrichtung brauchen."
+
+#: app/src/ui/sandbox_setup.rs:90
+msgid "The sandbox still cannot start"
+msgstr "Die Sandbox kann noch immer nicht starten"
 
 #: app/src/ui/sender_prefs.rs:19
 msgid "Addresses You Send From"

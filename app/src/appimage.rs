@@ -99,6 +99,77 @@ pub fn prepare() -> io::Result<()> {
     Ok(())
 }
 
+/// Where the AppArmor profile that allows the sandbox goes.
+const PROFILE: &str = "/etc/apparmor.d/penguin-mail-appimage";
+
+/// The AppArmor profile that lets `attach`, and the programs it starts,
+/// make the user namespaces bubblewrap needs. Ubuntu 24.04 allows that
+/// only to programs a profile names, and has none for bubblewrap.
+fn profile(attach: &Path) -> String {
+    let mut quoted = String::new();
+    for c in attach.to_string_lossy().chars() {
+        if matches!(c, '"' | '\\' | '*' | '?' | '[' | ']' | '{' | '}' | '^') {
+            quoted.push('\\');
+        }
+        quoted.push(c);
+    }
+    format!(
+        "abi <abi/4.0>,\ninclude <tunables/global>\n\n\
+         profile penguin-mail-appimage \"{quoted}\" flags=(unconfined) {{\n  userns,\n}}\n"
+    )
+}
+
+/// The commands that install `profile` for `attach` and load it.
+fn allow_command(attach: &Path) -> String {
+    format!(
+        "sudo tee {PROFILE} >/dev/null <<'EOF'\n{}EOF\nsudo apparmor_parser -r {PROFILE}",
+        profile(attach)
+    )
+}
+
+/// Whether WebKit and the image loaders can start their sandboxes.
+#[cfg(feature = "packaging-appimage")]
+pub enum Sandbox {
+    Ready,
+    /// The desktop has no `/usr/bin/bwrap`.
+    Missing,
+    /// It has one, but may not make namespaces; the command allows them.
+    Blocked {
+        command: String,
+    },
+}
+
+/// Starts bubblewrap the way the sandboxes do. WebKit aborts the app the
+/// first time a message opens when it cannot, so the app checks first.
+#[cfg(feature = "packaging-appimage")]
+pub fn sandbox() -> Sandbox {
+    let bwrap = Path::new("/usr/bin/bwrap");
+    if !bwrap.exists() {
+        return Sandbox::Missing;
+    }
+    let started = std::process::Command::new(bwrap)
+        .args([
+            "--unshare-all",
+            "--die-with-parent",
+            "--ro-bind",
+            "/",
+            "/",
+            "true",
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    if started {
+        return Sandbox::Ready;
+    }
+    let attach = login().map_or_else(|_| PathBuf::from("Penguin Mail.AppImage"), |(path, _)| path);
+    Sandbox::Blocked {
+        command: allow_command(&attach),
+    }
+}
+
 /// Frees the folders extraction leaves in the temporary folder once the
 /// app quits for good: this copy's files, and other Penguin Mail folders
 /// there no process has open, such as an older version's. This copy's
@@ -229,6 +300,40 @@ mod tests {
         assert!(running.join("usr/bin/penguin-mail").exists());
         assert!(other_app.join("usr/bin/editor").exists());
         assert!(kept_by_hand.join("usr/bin/penguin-mail").exists());
+    }
+
+    #[test]
+    fn the_profile_lets_only_this_file_make_namespaces() {
+        let text = profile(Path::new("/home/ann/My Apps/Mail.AppImage"));
+        assert!(text.contains(
+            "profile penguin-mail-appimage \"/home/ann/My Apps/Mail.AppImage\" flags=(unconfined) {"
+        ));
+        assert!(text.contains("\n  userns,\n"));
+        assert!(text.starts_with("abi <abi/4.0>,\n"));
+    }
+
+    #[test]
+    fn the_profile_keeps_a_strange_name_literal() {
+        // AppArmor reads these as quoting or as patterns that would match
+        // other files.
+        let text = profile(Path::new(r#"/home/ann/"Mail" [1]*?{a,b}\x.AppImage"#));
+        assert!(
+            text.contains(r#""/home/ann/\"Mail\" \[1\]\*\?\{a,b\}\\x.AppImage""#),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn the_command_writes_the_profile_and_loads_it() {
+        let command = allow_command(Path::new("/home/ann/Mail.AppImage"));
+        assert!(
+            command
+                .starts_with("sudo tee /etc/apparmor.d/penguin-mail-appimage >/dev/null <<'EOF'\n")
+        );
+        assert!(command.contains(&profile(Path::new("/home/ann/Mail.AppImage"))));
+        assert!(
+            command.ends_with("EOF\nsudo apparmor_parser -r /etc/apparmor.d/penguin-mail-appimage")
+        );
     }
 
     #[test]

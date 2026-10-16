@@ -236,6 +236,13 @@ fn main() -> glib::ExitCode {
     gio_app.connect_startup(move |gio_app| {
         gio::resources_register_include!("penguin-mail.gresource")
             .expect("the resources are built into the binary");
+        #[cfg(feature = "packaging-appimage")]
+        if let sandbox @ (appimage::Sandbox::Missing | appimage::Sandbox::Blocked { .. }) =
+            appimage::sandbox()
+        {
+            ui::sandbox_setup::present(gio_app, &sandbox);
+            return;
+        }
         match core::Core::open(demo) {
             Ok(core) => {
                 *started.borrow_mut() = Some(app::App::new(

@@ -2374,11 +2374,11 @@ msgstr ""
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail: tùy chọn không xác định {option}"
 
-#: app/src/main.rs:382
+#: app/src/main.rs:389
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail không thể khởi động"
 
-#: app/src/main.rs:387 app/src/ui/about.rs:181
+#: app/src/main.rs:394 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Báo cáo sự cố"
 
@@ -4359,11 +4359,13 @@ msgstr "Hiện nhật ký"
 msgid "The update to {version} failed"
 msgstr "Cập nhật lên {version} thất bại"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:125
+#: app/src/ui/sandbox_setup.rs:132 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "Sao chép lệnh"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/window.rs:1384
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:139
+#: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "Đã sao chép lệnh"
 
@@ -5089,7 +5091,7 @@ msgstr ""
 msgid "Name"
 msgstr "Tên"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:121
 msgid "Command"
 msgstr "Lệnh"
 
@@ -8269,7 +8271,7 @@ msgstr "Địa chỉ này chứa tên người dùng có thể che giấu địa
 msgid "This link contains hidden or direction-changing characters."
 msgstr "Liên kết này chứa ký tự ẩn hoặc ký tự thay đổi hướng văn bản."
 
-#: app/src/ui/mod.rs:466
+#: app/src/ui/mod.rs:468
 msgid "Gray"
 msgstr "Xám"
 
@@ -9048,6 +9050,50 @@ msgstr ""
 #: app/src/ui/rules.rs:697
 msgid "Replace"
 msgstr "Thay thế"
+
+#: app/src/ui/sandbox_setup.rs:30
+msgid "Check Again"
+msgstr "Kiểm tra lại"
+
+#: app/src/ui/sandbox_setup.rs:37
+msgid "Allow Penguin Mail's Sandbox"
+msgstr "Cho phép môi trường cách ly của Penguin Mail"
+
+#: app/src/ui/sandbox_setup.rs:39
+msgid ""
+"Penguin Mail opens every message in a sandbox, and this system lets an app "
+"start one only when it is allowed. Run this in a terminal once to allow this "
+"copy, then choose Check Again."
+msgstr ""
+"Penguin Mail mở mọi thư trong một môi trường cách ly, và hệ thống này chỉ "
+"cho một ứng dụng khởi động môi trường đó khi được cho phép. Hãy chạy lệnh "
+"này một lần trong terminal để cho phép bản này, rồi chọn Kiểm tra lại."
+
+#: app/src/ui/sandbox_setup.rs:48
+msgid "Install Bubblewrap"
+msgstr "Cài đặt Bubblewrap"
+
+#: app/src/ui/sandbox_setup.rs:50
+msgid ""
+"Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
+"the bubblewrap package, then choose Check Again."
+msgstr ""
+"Penguin Mail mở mọi thư trong một môi trường cách ly do Bubblewrap tạo. Hãy "
+"cài gói bubblewrap, rồi chọn Kiểm tra lại."
+
+#: app/src/ui/sandbox_setup.rs:62
+msgid ""
+"Or install Penguin Mail from <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> or the <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."
+msgstr ""
+"Hoặc cài Penguin Mail từ <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> hay <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, không cần thiết lập gì."
+
+#: app/src/ui/sandbox_setup.rs:90
+msgid "The sandbox still cannot start"
+msgstr "Môi trường cách ly vẫn chưa khởi động được"
 
 #: app/src/ui/sender_prefs.rs:19
 msgid "Addresses You Send From"

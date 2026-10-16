@@ -403,9 +403,10 @@ instead of Linux's WebKitGTK and tray.
   command-line programs separately and make them available on the app's PATH.
 - **AppImage.** The x86_64 AppImage carries the current app and its runtime
   for Ubuntu 22.04 and newer, and Debian 13. It keeps WebKit and image-loader
-  sandboxes enabled and uses your desktop's services and GnuPG. Download
-  a new AppImage to update. See [AppImage](appimage.md) for installation,
-  extraction mode, build instructions and testing limits.
+  sandboxes enabled and uses your desktop's services and GnuPG. On Ubuntu
+  24.04 it shows a command to run once, which lets it start those sandboxes.
+  Download a new AppImage to update. See [AppImage](appimage.md) for
+  installation, extraction mode, build instructions and testing limits.
 
 ## Where things live
 

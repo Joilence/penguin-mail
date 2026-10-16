@@ -29,9 +29,30 @@ MCP servers also use programs installed on your computer.
 
 WebKit and image loaders retain their bubblewrap sandboxes. The AppImage
 uses `/usr/bin/bwrap`, including its distribution-provided AppArmor profile.
-It does not need changes to the system's namespace or sandbox policy. If
-bubblewrap cannot run on your system, report its error rather than
-disabling the sandbox.
+Ubuntu 22.04, Ubuntu 25.04 and newer, and Debian 13 need no changes.
+
+Ubuntu 24.04 lets a program make the namespaces bubblewrap needs only when
+an AppArmor profile names it, and it has none for bubblewrap. Penguin Mail
+checks at startup, and where bubblewrap is stopped it shows the command
+that allows this one file, and starts once you choose Check Again. The
+command writes this profile, with your file's path, to
+`/etc/apparmor.d/penguin-mail-appimage` and loads it:
+
+```text
+abi <abi/4.0>,
+include <tunables/global>
+
+profile penguin-mail-appimage "/home/you/Apps/penguin-mail-1.0.9-x86_64.AppImage" flags=(unconfined) {
+  userns,
+}
+```
+
+Download a new version to the same path, or run the command again for the
+new file. To undo it, run
+`sudo apparmor_parser -R /etc/apparmor.d/penguin-mail-appimage`, then
+delete that file. The Flatpak and the snap
+need no setup on Ubuntu 24.04. If bubblewrap cannot run for another
+reason, report its error rather than disabling the sandbox.
 
 If FUSE is unavailable, use extraction mode:
 
