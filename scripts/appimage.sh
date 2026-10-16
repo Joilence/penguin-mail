@@ -34,14 +34,15 @@ install -m755 packaging/appimage/AppRun "$appdir/AppRun"
 cp "$appdir/usr/share/applications/io.github.c9dev.PenguinMail.desktop" "$appdir/"
 cp "$appdir/usr/share/icons/hicolor/scalable/apps/io.github.c9dev.PenguinMail.svg" "$appdir/"
 install -Dm644 LICENSE "$appdir/usr/share/doc/penguin-mail/LICENSE"
-# Fixed releases and asset IDs, verified before execution. The type-2
-# runtime is static and supports extraction when FUSE is unavailable.
+# Tagged releases, checked against their sums before they run. The type-2
+# runtime is static and supports extraction when FUSE is unavailable. Its
+# "continuous" release is replaced on every upstream build, so a pin on it
+# breaks; release downloads also need no API token.
 curl -fL --retry 3 https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage -o "$work/appimagetool"
-curl -fL --retry 3 -H 'Accept: application/octet-stream' \
-    https://api.github.com/repos/AppImage/type2-runtime/releases/assets/596078161 -o "$work/runtime"
+curl -fL --retry 3 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 -o "$work/runtime"
 printf '%s  %s\n' \
     ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0 "$work/appimagetool" \
-    156f4bdbde9c52d01814600013e0a273f0118dc2de98975f3c8c63427ec79074 "$work/runtime" | sha256sum -c -
+    2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d "$work/runtime" | sha256sum -c -
 chmod 755 "$work/appimagetool"
 # Unpacked here rather than with --appimage-extract-and-run, whose runtime
 # leaves its copy in the temporary folder.
