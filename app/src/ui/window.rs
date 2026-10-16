@@ -145,6 +145,9 @@ pub struct MainWindow {
     /// The About window while it is open, so an update's progress reaches
     /// its button.
     about: RefCell<Option<Rc<crate::ui::about::About>>>,
+    /// Preferences while it is open, so another press brings it back
+    /// rather than stacking a second one.
+    preferences: RefCell<Option<Rc<super::preferences::dialog::Dialog>>>,
     stack: gtk::Stack,
     split: adw::OverlaySplitView,
     /// The mail's list and conversation, or the calendar, beside the
@@ -881,6 +884,7 @@ impl MainWindow {
                 storage_banner_widgets: RefCell::new(HashMap::new()),
                 update_menu: gio::Menu::new(),
                 about: RefCell::new(None),
+                preferences: RefCell::new(None),
                 stack,
                 split,
                 spaces,
@@ -3698,10 +3702,19 @@ impl MainWindow {
         let Some(app) = self.app.upgrade() else {
             return;
         };
+        // One Preferences at a time. Asked for an account's signature
+        // while it is open, it turns to the accounts rather than starting
+        // again, which would drop what the person was in the middle of.
+        if let Some(open) = self.open_preferences() {
+            if focus.is_some() {
+                open.set_visible_page_name("accounts");
+            }
+            return;
+        }
         // Preferences puts each account on the pages that apply to it.
         let accounts = app.accounts();
         let weak = Rc::downgrade(self);
-        super::preferences::present(
+        let dialog = super::preferences::present(
             &app,
             &accounts,
             |id| self.offers(id),
@@ -3714,6 +3727,29 @@ impl MainWindow {
             &self.window,
             focus,
         );
+        self.keep_preferences(dialog);
+    }
+
+    /// Preferences, when it is open.
+    fn open_preferences(&self) -> Option<Rc<super::preferences::dialog::Dialog>> {
+        self.preferences.borrow().clone()
+    }
+
+    /// Holds `dialog` as the open Preferences until it closes.
+    fn keep_preferences(self: &Rc<Self>, dialog: Rc<super::preferences::dialog::Dialog>) {
+        let weak = Rc::downgrade(self);
+        dialog.window.connect_closed(move |closed| {
+            let Some(win) = weak.upgrade() else { return };
+            let ours = win
+                .preferences
+                .borrow()
+                .as_ref()
+                .is_some_and(|open| &open.window == closed);
+            if ours {
+                win.preferences.replace(None);
+            }
+        });
+        self.preferences.replace(Some(dialog));
     }
 
     fn show_rules(self: &Rc<Self>, account: Account) {
@@ -3739,9 +3775,13 @@ impl MainWindow {
         let Some(app) = self.app.upgrade() else {
             return;
         };
+        if let Some(open) = self.open_preferences() {
+            open.set_visible_page_name(page);
+            return;
+        }
         let accounts = app.accounts();
         let weak = Rc::downgrade(self);
-        super::preferences::present_page(
+        let dialog = super::preferences::present_page(
             &app,
             &accounts,
             |id| self.offers(id),
@@ -3754,6 +3794,7 @@ impl MainWindow {
             &self.window,
             page,
         );
+        self.keep_preferences(dialog);
     }
 
     fn show_vacation(self: &Rc<Self>, account: Account) {
@@ -3985,6 +4026,10 @@ impl MainWindow {
     }
 
     fn show_about(self: &Rc<Self>) {
+        // One About at a time: a second press finds it open already.
+        if self.about.borrow().is_some() {
+            return;
+        }
         let Some(app) = self.app.upgrade() else {
             return;
         };
