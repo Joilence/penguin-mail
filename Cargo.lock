@@ -2401,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "ammonia",
  "anyhow",
@@ -2459,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-ai"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "async-channel 2.5.0",
  "base64 0.23.1",
@@ -2476,7 +2476,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-cli"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -2494,7 +2494,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-dav"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "calcard",
@@ -2517,7 +2517,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-discover"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "futures",
  "hickory-resolver",
@@ -2537,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-domain"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2551,7 +2551,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-gmail"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -2574,7 +2574,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-graph"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-imap"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "async-imap",
  "base64 0.23.1",
@@ -2616,7 +2616,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-jmap"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -2638,7 +2638,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-mime"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "encoding_rs",
@@ -2649,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-pgp"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "libc",
  "mail-builder",
@@ -2660,7 +2660,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-pop3"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "mailrs-discover",
@@ -2675,7 +2675,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-sieve"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -2693,7 +2693,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-smime"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "mail-builder",
  "mailrs-pgp",
@@ -2704,7 +2704,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-store"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "chrono",
  "mailrs-domain",
@@ -2721,7 +2721,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-sync"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "async-channel 2.5.0",
  "base64 0.23.1",
@@ -2759,7 +2759,7 @@ dependencies = [
 
 [[package]]
 name = "mailrs-testmail"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "rand 0.10.3",
  "reqwest",
