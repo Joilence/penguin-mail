@@ -2903,21 +2903,25 @@ msgstr "模型未回傳任何可加入郵件的內容。"
 msgid "The model could not translate this: {reason}"
 msgstr "模型無法翻譯此內容：{reason}"
 
-#: app/src/packaging.rs:97
+#: app/src/packaging.rs:106
 msgid "Updates come from dnf"
 msgstr "由 dnf 提供更新"
 
-#: app/src/packaging.rs:98
+#: app/src/packaging.rs:107
 msgid "Updates come from pacman"
 msgstr "由 pacman 提供更新"
 
-#: app/src/packaging.rs:99
+#: app/src/packaging.rs:108
 msgid "Updates come from Flathub"
 msgstr "由 Flathub 提供更新"
 
-#: app/src/packaging.rs:100
+#: app/src/packaging.rs:109
 msgid "Updates come from the Snap Store"
 msgstr "由 Snap Store 提供更新"
+
+#: app/src/packaging.rs:110
+msgid "Updates come from Nix"
+msgstr "由 Nix 提供更新"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

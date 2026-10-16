@@ -2964,21 +2964,25 @@ msgstr "Mô hình không trả về nội dung để đưa vào thư."
 msgid "The model could not translate this: {reason}"
 msgstr "Mô hình không thể dịch nội dung này: {reason}"
 
-#: app/src/packaging.rs:97
+#: app/src/packaging.rs:106
 msgid "Updates come from dnf"
 msgstr "Bản cập nhật đến từ dnf"
 
-#: app/src/packaging.rs:98
+#: app/src/packaging.rs:107
 msgid "Updates come from pacman"
 msgstr "Bản cập nhật đến từ pacman"
 
-#: app/src/packaging.rs:99
+#: app/src/packaging.rs:108
 msgid "Updates come from Flathub"
 msgstr "Bản cập nhật đến từ Flathub"
 
-#: app/src/packaging.rs:100
+#: app/src/packaging.rs:109
 msgid "Updates come from the Snap Store"
 msgstr "Bản cập nhật đến từ Snap Store"
+
+#: app/src/packaging.rs:110
+msgid "Updates come from Nix"
+msgstr "Bản cập nhật đến từ Nix"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

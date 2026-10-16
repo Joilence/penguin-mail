@@ -3086,21 +3086,25 @@ msgstr "O modelo não devolveu nada para pôr na mensagem."
 msgid "The model could not translate this: {reason}"
 msgstr "O modelo não conseguiu traduzir isto: {reason}"
 
-#: app/src/packaging.rs:97
+#: app/src/packaging.rs:106
 msgid "Updates come from dnf"
 msgstr "As atualizações chegam pelo dnf"
 
-#: app/src/packaging.rs:98
+#: app/src/packaging.rs:107
 msgid "Updates come from pacman"
 msgstr "As atualizações chegam pelo pacman"
 
-#: app/src/packaging.rs:99
+#: app/src/packaging.rs:108
 msgid "Updates come from Flathub"
 msgstr "As atualizações chegam pelo Flathub"
 
-#: app/src/packaging.rs:100
+#: app/src/packaging.rs:109
 msgid "Updates come from the Snap Store"
 msgstr "As atualizações chegam pela Snap Store"
+
+#: app/src/packaging.rs:110
+msgid "Updates come from Nix"
+msgstr "As atualizações chegam pelo Nix"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"

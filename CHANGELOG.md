@@ -5,6 +5,10 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ## Unreleased
 
+### New
+
+- Build and install Penguin Mail with Nix, or enter its development environment with `nix develop`.
+
 ### Fixed
 
 - Microsoft messages with attachments open without the contentId request error.

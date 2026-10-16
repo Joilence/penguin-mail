@@ -1,7 +1,7 @@
 //! The kind of package this binary was built for, chosen at build time with
 //! a cargo feature: `packaging-rpm`, `packaging-arch`, `packaging-flatpak`
-//! or `packaging-snap`, and none for the .deb, the tarball and a build
-//! from source. It decides who installs new versions and whether skill
+//! `packaging-snap` or `packaging-nix`, and none for the .deb, the tarball
+//! and a build from source. It decides who installs new versions and whether skill
 //! scripts can run.
 
 use mailrs_domain::translate::gettext;
@@ -13,6 +13,10 @@ use mailrs_domain::translate::gettext;
     all(feature = "packaging-arch", feature = "packaging-flatpak"),
     all(feature = "packaging-arch", feature = "packaging-snap"),
     all(feature = "packaging-flatpak", feature = "packaging-snap"),
+    all(feature = "packaging-nix", feature = "packaging-rpm"),
+    all(feature = "packaging-nix", feature = "packaging-arch"),
+    all(feature = "packaging-nix", feature = "packaging-flatpak"),
+    all(feature = "packaging-nix", feature = "packaging-snap"),
 ))]
 compile_error!("a build is for one kind of package; pick one packaging-* feature");
 
@@ -24,6 +28,7 @@ pub enum Packaging {
     Arch,
     Flatpak,
     Snap,
+    Nix,
 }
 
 /// Who installs new versions of a package that does not update itself.
@@ -33,6 +38,7 @@ pub enum UpdatedBy {
     Pacman,
     Flathub,
     SnapStore,
+    Nix,
 }
 
 pub const BUILT_FOR: Packaging = if cfg!(feature = "packaging-rpm") {
@@ -43,6 +49,8 @@ pub const BUILT_FOR: Packaging = if cfg!(feature = "packaging-rpm") {
     Packaging::Flatpak
 } else if cfg!(feature = "packaging-snap") {
     Packaging::Snap
+} else if cfg!(feature = "packaging-nix") {
+    Packaging::Nix
 } else {
     Packaging::Native
 };
@@ -63,6 +71,7 @@ impl Packaging {
             Packaging::Arch => (Some(UpdatedBy::Pacman), None),
             Packaging::Flatpak => (Some(UpdatedBy::Flathub), Some("Flatpak")),
             Packaging::Snap => (Some(UpdatedBy::SnapStore), Some("Snap")),
+            Packaging::Nix => (Some(UpdatedBy::Nix), None),
         };
         Traits {
             updated_by,
@@ -98,6 +107,7 @@ impl UpdatedBy {
             UpdatedBy::Pacman => gettext("Updates come from pacman"),
             UpdatedBy::Flathub => gettext("Updates come from Flathub"),
             UpdatedBy::SnapStore => gettext("Updates come from the Snap Store"),
+            UpdatedBy::Nix => gettext("Updates come from Nix"),
         }
     }
 }
@@ -120,6 +130,7 @@ mod tests {
         assert!(Packaging::Native.runs_skills());
         assert!(Packaging::Rpm.runs_skills());
         assert!(Packaging::Arch.runs_skills());
+        assert!(Packaging::Nix.runs_skills());
         assert!(!Packaging::Flatpak.runs_skills());
         assert!(!Packaging::Snap.runs_skills());
     }
@@ -130,7 +141,8 @@ mod tests {
             feature = "packaging-rpm",
             feature = "packaging-arch",
             feature = "packaging-flatpak",
-            feature = "packaging-snap"
+            feature = "packaging-snap",
+            feature = "packaging-nix"
         )) {
             assert_eq!(BUILT_FOR, Packaging::Native);
         }

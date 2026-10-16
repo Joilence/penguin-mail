@@ -371,6 +371,10 @@ signing and encryption use your own keys.
 [CONTRIBUTING.md](CONTRIBUTING.md#building-from-source) has the steps, and
 how to build the Flatpak yourself.
 
+With Nix, `nix run github:c9dev/penguin-mail -- --demo` runs the app on
+sample mail. See [the Nix guide](docs/nix.md) for installation and account
+sign-in.
+
 ### First run
 
 The first screen signs you in with Google. **Sign In with Google** opens

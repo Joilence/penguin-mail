@@ -2821,20 +2821,24 @@ msgstr ""
 msgid "The model could not translate this: {reason}"
 msgstr ""
 
-#: app/src/packaging.rs:97
+#: app/src/packaging.rs:106
 msgid "Updates come from dnf"
 msgstr ""
 
-#: app/src/packaging.rs:98
+#: app/src/packaging.rs:107
 msgid "Updates come from pacman"
 msgstr ""
 
-#: app/src/packaging.rs:99
+#: app/src/packaging.rs:108
 msgid "Updates come from Flathub"
 msgstr ""
 
-#: app/src/packaging.rs:100
+#: app/src/packaging.rs:109
 msgid "Updates come from the Snap Store"
+msgstr ""
+
+#: app/src/packaging.rs:110
+msgid "Updates come from Nix"
 msgstr ""
 
 #: app/src/permission.rs:86
