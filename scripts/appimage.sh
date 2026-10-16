@@ -15,9 +15,14 @@ appdir="$work/PenguinMail.AppDir"
 mkdir -p "$appdir/usr"
 cp -a "$tree/." "$appdir/usr/"
 for file in bin/penguin-mail bin/penguin-mail-cli share/applications/io.github.c9dev.PenguinMail.desktop \
-    share/icons/hicolor/scalable/apps/io.github.c9dev.PenguinMail.svg; do
+    share/icons/hicolor/scalable/apps/io.github.c9dev.PenguinMail.svg \
+    share/metainfo/io.github.c9dev.PenguinMail.metainfo.xml; do
     test -s "$appdir/usr/$file" || { echo "Missing staged file: $file" >&2; exit 1; }
 done
+# appimagetool reads and checks the store listing only under its older
+# appdata name.
+ln -s io.github.c9dev.PenguinMail.metainfo.xml \
+    "$appdir/usr/share/metainfo/io.github.c9dev.PenguinMail.appdata.xml"
 mkdir -p "$appdir/usr/lib/penguin-mail"
 cc -O2 -Wall -Wextra -Werror -shared -fPIC packaging/appimage/runtime.c \
     -o "$appdir/usr/lib/penguin-mail/appimage-runtime.so" $(pkg-config --cflags --libs gio-2.0) -ldl
