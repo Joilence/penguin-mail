@@ -19,6 +19,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 - The Undo toast shows as soon as you act, and its Undo takes back the action it names. Undo pressed while the action is still on its way waits for it. Quick deletes or archives share one toast, such as "Moved 3 conversations to Trash" ([#54](https://github.com/c9dev/penguin-mail/issues/54), [#57](https://github.com/c9dev/penguin-mail/issues/57)).
 - On macOS the shortcuts use Command: Cmd+W closes the window, Cmd+Z undoes, Cmd+F finds, and the rest follow ([#55](https://github.com/c9dev/penguin-mail/issues/55)).
 - Pressing the Preferences or About shortcut again no longer opens a second dialog ([#53](https://github.com/c9dev/penguin-mail/issues/53)).
+- On macOS the sidebar title shows "Mailboxes" in full beside the window buttons ([#56](https://github.com/c9dev/penguin-mail/issues/56)).
 
 ## 1.0.9 (2026-10-16)
 
