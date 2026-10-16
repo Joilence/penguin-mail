@@ -315,6 +315,9 @@ impl AccountSync {
         if !self.renames() || !self.mail.follow(mailbox) {
             return Ok(());
         }
+        // What the server lists while a move is on its way would put the
+        // mail back where the move took it from.
+        let _moves = self.mail.hold_moves().await;
         let listed = self
             .mail
             .window_ids(self.window_days, Some(mailbox))

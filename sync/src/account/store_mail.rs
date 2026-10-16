@@ -41,18 +41,19 @@ pub(crate) struct StoreMail {
     /// Whether the server gives a message a new name when it moves; read
     /// once, since a service's capabilities never change.
     renames: bool,
-    /// Taken on a folder server by a write from its first server command
-    /// to the moment its moved messages' refs are recorded, and by every
-    /// look that can delete mail. A look in between would read a moved
-    /// message's old place as expunged and delete it.
+    /// Taken by a write from its change to the store to the moment the
+    /// server has it and its moved messages' refs are recorded, and by
+    /// every sync pass that writes what the server says. A pass in between
+    /// would put the mail back where the write took it from, and on a
+    /// folder server read a moved message's old place as expunged and
+    /// delete it.
     moving: Mutex<()>,
 }
 
-/// The move lock, held: what a write that moves mail and a look that can
-/// delete it do while holding it. On a label server it holds nothing.
+/// The move lock, held: what a write and a sync pass do while holding it.
 pub(crate) struct Moves<'a> {
     mail: &'a StoreMail,
-    _held: Option<MutexGuard<'a, ()>>,
+    _held: MutexGuard<'a, ()>,
 }
 
 /// A message by its store id, with the name the server knows it by, for
@@ -104,17 +105,15 @@ impl StoreMail {
         &self.mail
     }
 
-    /// Waits for any write still moving mail and keeps others out until
-    /// the answer drops. A label server names a message the same wherever
-    /// it sits, so nothing there waits.
+    /// Waits for any write or sync pass still under way and keeps others
+    /// out until the answer drops. A write changes the store before the
+    /// server, so a pass that read the server in between would put the
+    /// mail back where it was, on any server. On IMAP a move also renames
+    /// the message, which a pass must not read halfway.
     pub(crate) async fn hold_moves(&self) -> Moves<'_> {
-        let held = match self.renames {
-            true => Some(self.moving.lock().await),
-            false => None,
-        };
         Moves {
             mail: self,
-            _held: held,
+            _held: self.moving.lock().await,
         }
     }
 
