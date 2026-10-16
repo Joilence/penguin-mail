@@ -2346,6 +2346,22 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_links_have_a_preview_without_a_phishing_warning() {
+        let one = meta("m1", "Ann", &[]);
+        let body = MessageBody::default();
+        let no_thumbs = HashMap::new();
+        let mut view = receipt_view(&one, &body, &no_thumbs);
+        view.sanitized = Some(Sanitized {
+            html: "<a href=\"https://example.com/read\">Read more</a>",
+            paints: true,
+            history: None,
+        });
+        let page = page("Reading", vec![view]);
+        assert!(page.contains("id=\"mailrs-link-preview\""));
+        assert!(!page.contains("class=\"link-warning\""));
+    }
+
+    #[test]
     fn the_receipt_card_names_who_would_hear_and_offers_both_answers() {
         let one = meta("m1", "Ann", &[]);
         let body = MessageBody {

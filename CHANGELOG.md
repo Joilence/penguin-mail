@@ -21,6 +21,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
+- Link previews appear when you hover links inside HTML messages.
 - Rate-limit errors name the account's provider when it is known. Draft dialogs say whether the draft stays in the account or on this computer, and report when the account is not connected.
 - The snap's panel unread count updates without requiring developer mode.
 - The Snap package finds libproxy's backend when it starts, avoiding the missing libpxbackend-1.0.so error.

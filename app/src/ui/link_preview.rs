@@ -82,7 +82,7 @@ pub mod checks {
             let mut html = crate::render::head(&crate::render::Head {
                 subject: "Links", count: 1, allow_remote: false,
             }, &theme);
-            html.push_str(r#"<div class="body-frame"><div id="body"><template shadowrootmode="open"><a id="link" href="https://evil.example/login"><b>https://bank.example</b></a><div style="height:1800px"></div><a id="bottom" href="https://bottom.example">Bottom</a></template></div></div>"#);
+            html.push_str(r#"<div class="body-frame"><div id="body"><template shadowrootmode="open"><a id="ordinary" href="https://example.com/read">Read more</a><a id="link" href="https://evil.example/login"><b>https://bank.example</b></a><div style="height:1800px"></div><a id="bottom" href="https://bottom.example">Bottom</a></template></div></div>"#);
             html.push_str(crate::render::TAIL);
             page.load_html(&html);
             for _ in 0..100 {
@@ -90,6 +90,15 @@ pub mod checks {
                 glib::timeout_future(Duration::from_millis(20)).await;
             }
             assert!(loaded.get(), "the message loads");
+            // WebKit can keep native hover events inside the message's
+            // shadow root. Ordinary links still need a destination preview.
+            eval(&page, "document.querySelector('#body').shadowRoot.querySelector('#ordinary').dispatchEvent(new MouseEvent('mouseover',{bubbles:true,composed:false}));'sent'").await;
+            for _ in 0..100 {
+                if eval(&page, "String(!document.getElementById('mailrs-link-preview').hidden)").await == "true" { break; }
+                glib::timeout_future(Duration::from_millis(20)).await;
+            }
+            assert_eq!(eval(&page, "String(!document.getElementById('mailrs-link-preview').hidden && document.getElementById('mailrs-link-preview').textContent.includes('https://example.com/read'))").await, "true", "an ordinary link shows its destination without crossing the shadow boundary");
+            assert_eq!(eval(&page, "String(document.getElementById('mailrs-link-preview').classList.contains('caution') || !!document.querySelector('#mailrs-link-preview small'))").await, "false", "ordinary links have no warning");
             eval(&page, "document.querySelector('#body').shadowRoot.querySelector('b').dispatchEvent(new MouseEvent('mouseover',{bubbles:true,composed:true}));'sent'").await;
             let mut shown = String::new();
             for _ in 0..100 {
@@ -111,6 +120,15 @@ pub mod checks {
                 glib::timeout_future(Duration::from_millis(20)).await;
             }
             assert_eq!(eval(&page, "String(document.getElementById('mailrs-link-preview').hidden)").await, "true");
+            // A body fetched later introduces another shadow root.
+            eval(&page, "const host=document.createElement('div');host.id='later';document.querySelector('.body-frame').appendChild(host);host.attachShadow({mode:'open'}).innerHTML='<a href=\"https://later.example/read\">Later link</a>'; 'patched'").await;
+            glib::timeout_future(Duration::from_millis(20)).await;
+            eval(&page, "document.querySelector('#later').shadowRoot.querySelector('a').dispatchEvent(new MouseEvent('mouseover',{bubbles:true,composed:false}));'sent'").await;
+            for _ in 0..100 {
+                if eval(&page, "String(!document.getElementById('mailrs-link-preview').hidden && document.getElementById('mailrs-link-preview').textContent.includes('later.example'))").await == "true" { break; }
+                glib::timeout_future(Duration::from_millis(20)).await;
+            }
+            assert_eq!(eval(&page, "String(!document.getElementById('mailrs-link-preview').hidden && document.getElementById('mailrs-link-preview').textContent.includes('later.example'))").await, "true", "a newly inserted message gets hover previews");
             clear(&page);
             assert_eq!(eval(&page, "String(document.getElementById('mailrs-link-preview').hidden)").await, "true");
             eval(&page, "document.querySelector('#body').shadowRoot.querySelector('a').dispatchEvent(new FocusEvent('focusin',{bubbles:true,composed:true}));'sent'").await;

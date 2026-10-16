@@ -46,24 +46,40 @@
       return node instanceof HTMLAnchorElement && node.hasAttribute('href');
     });
   };
-  document.addEventListener('mouseover', function (event) {
-    hovered = anchorOf(event);
-    show(hovered || focused);
-  }, true);
-  document.addEventListener('focusin', function (event) {
-    focused = anchorOf(event);
-    show(focused);
-  }, true);
-  document.addEventListener('mouseout', function (event) {
-    if (!event.relatedTarget || !hovered || !hovered.contains(event.relatedTarget)) {
-      hovered = null;
+  const watched = new WeakSet();
+  const watch = function (root) {
+    if (watched.has(root)) return;
+    watched.add(root);
+    // WebKit can deliver native hover events only inside the shadow root.
+    // Listening on the document alone misses the link inside a message.
+    root.addEventListener('mouseover', function (event) {
+      hovered = anchorOf(event);
+      show(hovered || focused);
+    }, true);
+    root.addEventListener('focusin', function (event) {
+      focused = anchorOf(event);
       show(focused);
-    }
-  }, true);
-  document.addEventListener('focusout', function () {
-    focused = null;
-    show(hovered);
-  }, true);
+    }, true);
+    root.addEventListener('mouseout', function (event) {
+      if (!event.relatedTarget || !hovered || !hovered.contains(event.relatedTarget)) {
+        hovered = null;
+        show(focused);
+      }
+    }, true);
+    root.addEventListener('focusout', function () {
+      focused = null;
+      show(hovered);
+    }, true);
+    observer.observe(root === document ? document.body : root, { childList: true, subtree: true });
+    watchTree(root);
+  };
+  const watchTree = function (node) {
+    if (node instanceof Element && node.shadowRoot) watch(node.shadowRoot);
+    if (!node.querySelectorAll) return;
+    node.querySelectorAll('*').forEach(function (child) {
+      if (child.shadowRoot) watch(child.shadowRoot);
+    });
+  };
   window.addEventListener('blur', clear);
   window.addEventListener('scroll', function () {
     // Scrolling invalidates the pointer target, but keyboard focus stays
@@ -78,12 +94,14 @@
   const insidePreview = function (node) {
     return node === preview || preview.contains(node);
   };
-  new MutationObserver(function (records) {
+  const observer = new MutationObserver(function (records) {
+    let changed = false;
     for (const record of records) {
-      if (!insidePreview(record.target)) {
-        clear();
-        return;
-      }
+      if (insidePreview(record.target)) continue;
+      changed = true;
+      record.addedNodes.forEach(watchTree);
     }
-  }).observe(document.body, { childList: true, subtree: true });
+    if (changed) clear();
+  });
+  watch(document);
 })()
