@@ -8919,16 +8919,14 @@ msgstr ""
 "箱。請在終端機中執行一次以下指令來允許這份副本，然後選擇「再次檢查」。"
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
-msgstr "安裝 Bubblewrap"
+msgid "Install the Sandbox Tools"
+msgstr "安裝沙箱工具"
 
 #: app/src/ui/sandbox_setup.rs:50
 msgid ""
 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
-"the bubblewrap package, then choose Check Again."
-msgstr ""
-"Penguin Mail 會在以 Bubblewrap 建立的沙箱中開啟每封郵件。請安裝 bubblewrap 套"
-"件，然後選擇「再次檢查」。"
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail 會在以 Bubblewrap 建立的沙箱中開啟每封郵件。請安裝 bubblewrap 與 xdg-dbus-proxy 套件，然後選擇「再次檢查」。"
 
 #: app/src/ui/sandbox_setup.rs:62
 msgid ""
@@ -11657,6 +11655,9 @@ msgstr "標示為非垃圾郵件"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "移至 {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "安裝 Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "新郵件的寄件帳號"

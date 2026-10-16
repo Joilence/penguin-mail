@@ -131,7 +131,8 @@ fn allow_command(attach: &Path) -> String {
 #[cfg(feature = "packaging-appimage")]
 pub enum Sandbox {
     Ready,
-    /// The desktop has no `/usr/bin/bwrap`.
+    /// The desktop has no `/usr/bin/bwrap`, or no `/usr/bin/xdg-dbus-proxy`,
+    /// which WebKit's sandbox starts to reach the session bus.
     Missing,
     /// It has one, but may not make namespaces; the command allows them.
     Blocked {
@@ -144,7 +145,7 @@ pub enum Sandbox {
 #[cfg(feature = "packaging-appimage")]
 pub fn sandbox() -> Sandbox {
     let bwrap = Path::new("/usr/bin/bwrap");
-    if !bwrap.exists() {
+    if !bwrap.exists() || !Path::new("/usr/bin/xdg-dbus-proxy").exists() {
         return Sandbox::Missing;
     }
     let started = std::process::Command::new(bwrap)

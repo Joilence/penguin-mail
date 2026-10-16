@@ -8502,12 +8502,12 @@ msgid "Penguin Mail opens every message in a sandbox, and this system lets an ap
 msgstr "Penguin Mail opens every message in a sandbox, and this system lets an app start one only when it is allowed. Run this in a terminal once to allow this copy, then choose Check Again."
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
-msgstr "Install Bubblewrap"
+msgid "Install the Sandbox Tools"
+msgstr "Install the Sandbox Tools"
 
 #: app/src/ui/sandbox_setup.rs:50
-msgid "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install the bubblewrap package, then choose Check Again."
-msgstr "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install the bubblewrap package, then choose Check Again."
+msgid "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
 
 #: app/src/ui/sandbox_setup.rs:62
 msgid "Or install Penguin Mail from <a href=\"https://flathub.org/apps/io.github.c9dev.penguin-mail\">Flathub</a> or the <a href=\"https://snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."

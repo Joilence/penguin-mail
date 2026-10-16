@@ -45,10 +45,10 @@ pub fn present(gio_app: &gio::Application, sandbox: &Sandbox) {
             shown = Some(text);
         }
         Sandbox::Missing | Sandbox::Ready => {
-            page.set_title(&gettext("Install Bubblewrap"));
+            page.set_title(&gettext("Install the Sandbox Tools"));
             page.set_description(Some(&gettext(
                 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install \
-                 the bubblewrap package, then choose Check Again.",
+                 the bubblewrap and xdg-dbus-proxy packages, then choose Check Again.",
             )));
         }
     }

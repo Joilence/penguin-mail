@@ -8802,13 +8802,13 @@ msgid ""
 msgstr ""
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
+msgid "Install the Sandbox Tools"
 msgstr ""
 
 #: app/src/ui/sandbox_setup.rs:50
 msgid ""
 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
-"the bubblewrap package, then choose Check Again."
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
 msgstr ""
 
 #: app/src/ui/sandbox_setup.rs:62

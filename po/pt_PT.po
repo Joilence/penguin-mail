@@ -9332,16 +9332,14 @@ msgstr ""
 "terminal para autorizar esta cópia e depois escolha Verificar de novo."
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
-msgstr "Instalar o Bubblewrap"
+msgid "Install the Sandbox Tools"
+msgstr "Instalar as ferramentas da área isolada"
 
 #: app/src/ui/sandbox_setup.rs:50
 msgid ""
 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
-"the bubblewrap package, then choose Check Again."
-msgstr ""
-"O Penguin Mail abre cada mensagem numa área isolada criada com o Bubblewrap. "
-"Instale o pacote bubblewrap e depois escolha Verificar de novo."
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "O Penguin Mail abre cada mensagem numa área isolada criada com o Bubblewrap. Instale os pacotes bubblewrap e xdg-dbus-proxy e depois escolha Verificar de novo."
 
 #: app/src/ui/sandbox_setup.rs:62
 msgid ""
@@ -12241,6 +12239,9 @@ msgstr "Marcar como não sendo spam"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "Mover para {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "Instalar o Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "Enviar mensagens novas de"

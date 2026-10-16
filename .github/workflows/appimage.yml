@@ -119,7 +119,7 @@ jobs:
       - name: Install the desktop pieces
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb xauth bubblewrap \
+          sudo apt-get install -y --no-install-recommends xvfb xauth bubblewrap xdg-dbus-proxy \
               at-spi2-core python3-gi gir1.2-atspi-2.0 libglib2.0-bin
       - name: The app shows the command, and the command allows it
         run: |

@@ -9401,16 +9401,14 @@ msgstr ""
 "Vérifier à nouveau."
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
-msgstr "Installer Bubblewrap"
+msgid "Install the Sandbox Tools"
+msgstr "Installer les outils du bac à sable"
 
 #: app/src/ui/sandbox_setup.rs:50
 msgid ""
 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
-"the bubblewrap package, then choose Check Again."
-msgstr ""
-"Penguin Mail ouvre chaque message dans un bac à sable créé avec Bubblewrap. "
-"Installez le paquet bubblewrap, puis choisissez Vérifier à nouveau."
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail ouvre chaque message dans un bac à sable créé avec Bubblewrap. Installez les paquets bubblewrap et xdg-dbus-proxy, puis choisissez Vérifier à nouveau."
 
 #: app/src/ui/sandbox_setup.rs:62
 msgid ""
@@ -12335,6 +12333,9 @@ msgstr "Marquer comme non indésirable"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "Déplacer vers {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "Installer Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "Envoyer les nouveaux messages depuis"

@@ -9070,16 +9070,14 @@ msgstr ""
 "này một lần trong terminal để cho phép bản này, rồi chọn Kiểm tra lại."
 
 #: app/src/ui/sandbox_setup.rs:48
-msgid "Install Bubblewrap"
-msgstr "Cài đặt Bubblewrap"
+msgid "Install the Sandbox Tools"
+msgstr "Cài đặt công cụ cho môi trường cách ly"
 
 #: app/src/ui/sandbox_setup.rs:50
 msgid ""
 "Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
-"the bubblewrap package, then choose Check Again."
-msgstr ""
-"Penguin Mail mở mọi thư trong một môi trường cách ly do Bubblewrap tạo. Hãy "
-"cài gói bubblewrap, rồi chọn Kiểm tra lại."
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail mở mọi thư trong một môi trường cách ly do Bubblewrap tạo. Hãy cài các gói bubblewrap và xdg-dbus-proxy, rồi chọn Kiểm tra lại."
 
 #: app/src/ui/sandbox_setup.rs:62
 msgid ""
@@ -11875,6 +11873,9 @@ msgstr "Đánh dấu không phải thư rác"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "Chuyển vào {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "Cài đặt Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "Gửi thư mới từ"
