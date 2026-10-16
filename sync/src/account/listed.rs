@@ -10,14 +10,14 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::time::{Duration, Instant};
 
-use mailrs_domain::MessageMeta;
-use mailrs_domain::query::{Query, parse, resolve_names};
+use mailrs_domain::query::{Query, Term, parse, resolve_names};
+use mailrs_domain::{MailSet, MessageMeta, Role};
 use mailrs_store::messages::Change;
 use mailrs_store::{accounts, labels, messages};
 
 use super::AccountSync;
 use super::fetch::Placing;
-use crate::{BackendError, RemoteRef, SearchQuery, SyncError, Want};
+use crate::{AnyMail, BackendError, RemoteRef, SearchQuery, SyncError, Want};
 
 /// How long a fetched thread is kept for opening. Only memory depends on
 /// it: whether a kept thread may still be stored is the history cursor's
@@ -64,6 +64,13 @@ impl AccountSync {
         limit: usize,
     ) -> Result<Vec<RemoteRef>, SyncError> {
         let found = match query {
+            // IMAP does not sync Junk or Trash until they are followed,
+            // so their listings must ask the server even for recent mail.
+            SearchQuery::Tree(Query::Term(Term::In(MailSet::Role(Role::Junk | Role::Trash))))
+                if matches!(&self.services.mail, AnyMail::Imap(_)) =>
+            {
+                self.mail.search(query, limit).await?
+            }
             // A server that reads no Gmail syntax lists folders and smart
             // mailboxes from the store's copy: sync already holds that
             // mail, and a server search would cost a round trip per

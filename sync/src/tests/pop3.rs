@@ -213,6 +213,25 @@ async fn a_pop3_account_lists_six_role_mailboxes_and_the_ones_made_here() {
 }
 
 #[tokio::test]
+async fn junk_and_trash_list_messages_kept_on_this_computer() {
+    use crate::SearchQuery;
+    use mailrs_domain::Folder;
+
+    for (folder, mailbox) in [(Folder::Junk, "junk"), (Folder::Trash, "trash")] {
+        let h = pop3_harness(FakePop3::default(), RemoveSetting::Never).await;
+        let id = h.keep("u1", &pop3_mail(1), mailbox, now_millis()).await;
+        let listing = h
+            .sync
+            .search_listing(&SearchQuery::Tree(folder.query()), 10)
+            .await
+            .unwrap();
+        assert_eq!(listing.refs.len(), 1);
+        assert_eq!(listing.refs[0].id, id);
+        assert_eq!(h.sync.metadata_of(&listing.refs).await.unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
 async fn moving_and_flagging_change_the_store_and_reach_no_server() {
     let h = pop3_harness(FakePop3::default(), RemoveSetting::Never).await;
     let id = h.keep("u1", &pop3_mail(1), "inbox", now_millis()).await;

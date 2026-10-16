@@ -5,6 +5,10 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ## Unreleased
 
+### Fixed
+
+- IMAP Junk and Trash show messages on the server even when they have not synced to this computer.
+
 ## 1.0.9 (2026-10-16)
 
 ### New

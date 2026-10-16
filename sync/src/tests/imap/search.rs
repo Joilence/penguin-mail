@@ -78,6 +78,57 @@ async fn search_hits_open_under_their_local_threads() {
 }
 
 #[tokio::test]
+async fn junk_and_trash_list_messages_the_sync_window_does_not_hold() {
+    for (folder, mailbox, expected) in [
+        (Folder::Junk, "Junk", "Junk/1005/1"),
+        (Folder::Trash, "Trash", "Trash/1004/1"),
+    ] {
+        for age in [1, 400] {
+            let h = imap_harness().await;
+            h.imap.deliver_flagged(
+                mailbox,
+                &message("outside", "A message outside sync", ""),
+                &[],
+                days_ago(age),
+            );
+            h.bootstrap().await;
+            assert!(h.ids().await.is_empty());
+
+            let listing = h
+                .sync
+                .search_listing(&SearchQuery::Tree(folder.query()), 10)
+                .await
+                .unwrap();
+            assert!(!listing.store_only);
+            assert_eq!(ids(&listing.refs), [expected]);
+            let rows = h.sync.metadata_of(&listing.refs).await.unwrap();
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].subject, "A message outside sync");
+        }
+    }
+}
+
+#[tokio::test]
+async fn archive_listings_keep_the_stored_sync_window() {
+    let h = imap_harness().await;
+    for (id, age) in [("recent", 1), ("old", 400)] {
+        h.imap.deliver_flagged(
+            "Archive",
+            &message(id, "Archived mail", ""),
+            &[],
+            days_ago(age),
+        );
+    }
+    h.bootstrap().await;
+    let listing = h
+        .sync
+        .search_listing(&SearchQuery::Tree(Folder::Archive.query()), 10)
+        .await
+        .unwrap();
+    assert_eq!(ids(&listing.refs), ["Archive/1006/1"]);
+}
+
+#[tokio::test]
 async fn a_search_past_the_window_asks_the_server() {
     let h = imap_harness().await;
     h.imap.deliver_flagged(
