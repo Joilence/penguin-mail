@@ -93,7 +93,7 @@ log = open(HOME / "app.log", "w")
 subprocess.Popen([IMAGE, *FLAGS], stdout=log, stderr=subprocess.STDOUT)
 text = wait(lambda: find(application(), lambda n: (n.get_name() or "") == "Command"),
             "the command in the sandbox window")
-command = text.get_text_iface().get_text(0, -1)
+command = Atspi.Text.get_text(text, 0, -1)
 if f'"{IMAGE}"' not in command or "apparmor_parser -r" not in command:
     fail(f"the window shows {command!r}")
 say("Sandbox window: PASS")
