@@ -69,7 +69,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$version</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
-  <key>NSUserNotificationAlertStyle</key><string>alert</string>
+  <key>NSUserNotificationAlertStyle</key><string>banner</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
