@@ -4182,12 +4182,12 @@ msgstr ""
 msgid "The update to {version} failed"
 msgstr ""
 
-#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:125
-#: app/src/ui/sandbox_setup.rs:132 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:129
+#: app/src/ui/sandbox_setup.rs:136 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr ""
 
-#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:139
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:143
 #: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr ""
@@ -4887,7 +4887,7 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:121
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:125
 msgid "Command"
 msgstr ""
 
@@ -8818,7 +8818,7 @@ msgid ""
 "snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."
 msgstr ""
 
-#: app/src/ui/sandbox_setup.rs:90
+#: app/src/ui/sandbox_setup.rs:94
 msgid "The sandbox still cannot start"
 msgstr ""
 

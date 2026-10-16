@@ -4544,12 +4544,12 @@ msgstr "Mostrar el registro"
 msgid "The update to {version} failed"
 msgstr "Ha fallado la actualización a {version}"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:125
-#: app/src/ui/sandbox_setup.rs:132 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:129
+#: app/src/ui/sandbox_setup.rs:136 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "Copiar la orden"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:139
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:143
 #: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "Orden copiada"
@@ -5287,7 +5287,7 @@ msgstr ""
 msgid "Name"
 msgstr "Nombre"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:121
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:125
 msgid "Command"
 msgstr "Orden"
 
@@ -9377,7 +9377,7 @@ msgstr ""
 "io.github.c9dev.penguin-mail\">Flathub</a> o la <a href=\"https://"
 "snapcraft.io/penguin-mail\">Snap Store</a>, que no necesitan configuración."
 
-#: app/src/ui/sandbox_setup.rs:90
+#: app/src/ui/sandbox_setup.rs:94
 msgid "The sandbox still cannot start"
 msgstr "El entorno aislado sigue sin poder iniciarse"
 

@@ -4575,12 +4575,12 @@ msgstr "Afficher le journal"
 msgid "The update to {version} failed"
 msgstr "La mise à jour vers {version} a échoué"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:125
-#: app/src/ui/sandbox_setup.rs:132 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:129
+#: app/src/ui/sandbox_setup.rs:136 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "Copier la commande"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:139
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:143
 #: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "Commande copiée"
@@ -5319,7 +5319,7 @@ msgstr ""
 msgid "Name"
 msgstr "Nom"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:121
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:125
 msgid "Command"
 msgstr "Commande"
 
@@ -9423,7 +9423,7 @@ msgstr ""
 "href=\"https://snapcraft.io/penguin-mail\">Snap Store</a>, qui ne demandent "
 "aucune configuration."
 
-#: app/src/ui/sandbox_setup.rs:90
+#: app/src/ui/sandbox_setup.rs:94
 msgid "The sandbox still cannot start"
 msgstr "Le bac à sable ne peut toujours pas démarrer"
 

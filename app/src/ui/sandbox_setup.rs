@@ -77,11 +77,15 @@ pub fn present(gio_app: &gio::Application, sandbox: &Sandbox) {
         .build();
     crate::ui::window::track_dark_class(&window);
 
+    // AppArmor gives a profile only to a program started after it was
+    // loaded, by the path it names, so this process cannot use the one the
+    // command installs. Starting the image again, as the login item does,
+    // can, and that copy checks the sandbox and shows this window again if
+    // it still cannot start. A mount this copy held stays until it quits.
     check.connect_clicked(move |check| {
-        if matches!(crate::appimage::sandbox(), Sandbox::Ready)
-            && let Ok(launcher) = crate::appimage::launcher()
-        {
-            let err = std::process::Command::new(launcher)
+        if let Ok((image, flags)) = crate::appimage::login() {
+            let err = std::process::Command::new(image)
+                .args(flags)
                 .args(std::env::args_os().skip(1))
                 .exec();
             tracing::warn!(error = %err, "could not start again");
