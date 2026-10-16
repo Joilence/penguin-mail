@@ -17,6 +17,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 - IMAP Junk and Trash show messages on the server even when they have not synced to this computer.
 - A deleted or archived message no longer flashes back into the list before the server has it, on any account ([#58](https://github.com/c9dev/penguin-mail/issues/58)).
 - The Undo toast shows as soon as you act, and its Undo takes back the action it names. Undo pressed while the action is still on its way waits for it. Quick deletes or archives share one toast, such as "Moved 3 conversations to Trash" ([#54](https://github.com/c9dev/penguin-mail/issues/54), [#57](https://github.com/c9dev/penguin-mail/issues/57)).
+- On macOS the shortcuts use Command: Cmd+W closes the window, Cmd+Z undoes, Cmd+F finds, and the rest follow ([#55](https://github.com/c9dev/penguin-mail/issues/55)).
 
 ## 1.0.9 (2026-10-16)
 
