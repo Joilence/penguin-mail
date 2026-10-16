@@ -36,6 +36,8 @@ pub mod preferences;
 pub mod queued;
 pub mod roving;
 pub mod rules;
+#[cfg(feature = "packaging-appimage")]
+pub mod sandbox_setup;
 pub mod search_suggest;
 pub mod sender_prefs;
 pub mod sidebar;

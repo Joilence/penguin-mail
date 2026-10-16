@@ -2301,7 +2301,7 @@ msgstr ""
 msgid "{language} ({country})"
 msgstr "{language}（{country}）"
 
-#: app/src/main.rs:98
+#: app/src/main.rs:100
 msgid ""
 "Usage: penguin-mail [--background] [--demo] [--compose [mailto:ADDRESS]] "
 "[FILE.ics]\n"
@@ -2323,15 +2323,15 @@ msgstr ""
 "  mailto:...     等同於 --compose mailto:...\n"
 "  FILE.ics       開啟行事曆檔案，將其中活動加入行事曆"
 
-#: app/src/main.rs:182
+#: app/src/main.rs:186
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail：未知選項 {option}"
 
-#: app/src/main.rs:368
+#: app/src/main.rs:389
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail 無法啟動"
 
-#: app/src/main.rs:373 app/src/ui/about.rs:181
+#: app/src/main.rs:394 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "回報問題"
 
@@ -2903,25 +2903,29 @@ msgstr "模型未回傳任何可加入郵件的內容。"
 msgid "The model could not translate this: {reason}"
 msgstr "模型無法翻譯此內容：{reason}"
 
-#: app/src/packaging.rs:106
+#: app/src/packaging.rs:127
 msgid "Updates come from dnf"
 msgstr "由 dnf 提供更新"
 
-#: app/src/packaging.rs:107
+#: app/src/packaging.rs:128
 msgid "Updates come from pacman"
 msgstr "由 pacman 提供更新"
 
-#: app/src/packaging.rs:108
+#: app/src/packaging.rs:129
 msgid "Updates come from Flathub"
 msgstr "由 Flathub 提供更新"
 
-#: app/src/packaging.rs:109
+#: app/src/packaging.rs:130
 msgid "Updates come from the Snap Store"
 msgstr "由 Snap Store 提供更新"
 
-#: app/src/packaging.rs:110
+#: app/src/packaging.rs:131
 msgid "Updates come from Nix"
 msgstr "由 Nix 提供更新"
+
+#: app/src/packaging.rs:132
+msgid "Download a new AppImage to update"
+msgstr "下載新的 AppImage 即可更新"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"
@@ -4271,11 +4275,13 @@ msgstr "顯示紀錄"
 msgid "The update to {version} failed"
 msgstr "更新至 {version} 失敗"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:129
+#: app/src/ui/sandbox_setup.rs:136 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "複製指令"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/window.rs:1384
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:143
+#: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "已複製指令"
 
@@ -4992,7 +4998,7 @@ msgstr ""
 msgid "Name"
 msgstr "名稱"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:125
 msgid "Command"
 msgstr "指令"
 
@@ -8125,7 +8131,7 @@ msgstr "這個網址包含可能掩飾目的地的使用者名稱。"
 msgid "This link contains hidden or direction-changing characters."
 msgstr "這個連結包含隱藏字元或變更文字方向的字元。"
 
-#: app/src/ui/mod.rs:466
+#: app/src/ui/mod.rs:468
 msgid "Gray"
 msgstr "灰色"
 
@@ -8894,6 +8900,47 @@ msgstr ""
 #: app/src/ui/rules.rs:697
 msgid "Replace"
 msgstr "取代"
+
+#: app/src/ui/sandbox_setup.rs:30
+msgid "Check Again"
+msgstr "再次檢查"
+
+#: app/src/ui/sandbox_setup.rs:37
+msgid "Allow Penguin Mail's Sandbox"
+msgstr "允許 Penguin Mail 的沙箱"
+
+#: app/src/ui/sandbox_setup.rs:39
+msgid ""
+"Penguin Mail opens every message in a sandbox, and this system lets an app "
+"start one only when it is allowed. Run this in a terminal once to allow this "
+"copy, then choose Check Again."
+msgstr ""
+"Penguin Mail 會在沙箱中開啟每封郵件，而這個系統只讓獲得允許的應用程式啟動沙"
+"箱。請在終端機中執行一次以下指令來允許這份副本，然後選擇「再次檢查」。"
+
+#: app/src/ui/sandbox_setup.rs:48
+msgid "Install the Sandbox Tools"
+msgstr "安裝沙箱工具"
+
+#: app/src/ui/sandbox_setup.rs:50
+msgid ""
+"Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail 會在以 Bubblewrap 建立的沙箱中開啟每封郵件。請安裝 bubblewrap 與 xdg-dbus-proxy 套件，然後選擇「再次檢查」。"
+
+#: app/src/ui/sandbox_setup.rs:62
+msgid ""
+"Or install Penguin Mail from <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> or the <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."
+msgstr ""
+"或從 <a href=\"https://flathub.org/apps/io.github.c9dev.penguin-"
+"mail\">Flathub</a> 或 <a href=\"https://snapcraft.io/penguin-mail\">Snap "
+"Store</a> 安裝 Penguin Mail，不需任何設定。"
+
+#: app/src/ui/sandbox_setup.rs:94
+msgid "The sandbox still cannot start"
+msgstr "沙箱仍然無法啟動"
 
 #: app/src/ui/sender_prefs.rs:19
 msgid "Addresses You Send From"
@@ -11608,6 +11655,9 @@ msgstr "標示為非垃圾郵件"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "移至 {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "安裝 Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "新郵件的寄件帳號"

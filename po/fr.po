@@ -2471,7 +2471,7 @@ msgstr ""
 msgid "{language} ({country})"
 msgstr "{language} ({country})"
 
-#: app/src/main.rs:98
+#: app/src/main.rs:100
 msgid ""
 "Usage: penguin-mail [--background] [--demo] [--compose [mailto:ADDRESS]] "
 "[FILE.ics]\n"
@@ -2497,15 +2497,15 @@ msgstr ""
 "  FICHIER.ics    ouvrir un fichier d’agenda pour ajouter ses événements à un "
 "agenda"
 
-#: app/src/main.rs:182
+#: app/src/main.rs:186
 msgid "penguin-mail: unknown option {option}"
 msgstr "penguin-mail : option inconnue {option}"
 
-#: app/src/main.rs:368
+#: app/src/main.rs:389
 msgid "Penguin Mail Could Not Start"
 msgstr "Penguin Mail n’a pas pu démarrer"
 
-#: app/src/main.rs:373 app/src/ui/about.rs:181
+#: app/src/main.rs:394 app/src/ui/about.rs:181
 msgid "Report a Problem"
 msgstr "Signaler un problème"
 
@@ -3127,25 +3127,29 @@ msgstr "Le modèle n’a rien renvoyé à mettre dans le message."
 msgid "The model could not translate this: {reason}"
 msgstr "Le modèle n’a pas pu traduire ceci : {reason}"
 
-#: app/src/packaging.rs:106
+#: app/src/packaging.rs:127
 msgid "Updates come from dnf"
 msgstr "Les mises à jour viennent de dnf"
 
-#: app/src/packaging.rs:107
+#: app/src/packaging.rs:128
 msgid "Updates come from pacman"
 msgstr "Les mises à jour viennent de pacman"
 
-#: app/src/packaging.rs:108
+#: app/src/packaging.rs:129
 msgid "Updates come from Flathub"
 msgstr "Les mises à jour viennent de Flathub"
 
-#: app/src/packaging.rs:109
+#: app/src/packaging.rs:130
 msgid "Updates come from the Snap Store"
 msgstr "Les mises à jour viennent du Snap Store"
 
-#: app/src/packaging.rs:110
+#: app/src/packaging.rs:131
 msgid "Updates come from Nix"
 msgstr "Les mises à jour viennent de Nix"
+
+#: app/src/packaging.rs:132
+msgid "Download a new AppImage to update"
+msgstr "Téléchargez une nouvelle AppImage pour mettre à jour"
 
 #: app/src/permission.rs:86
 msgid "Penguin Mail needs permission to change {service} settings"
@@ -4571,11 +4575,13 @@ msgstr "Afficher le journal"
 msgid "The update to {version} failed"
 msgstr "La mise à jour vers {version} a échoué"
 
-#: app/src/ui/add_account.rs:419 app/src/ui/window.rs:1379
+#: app/src/ui/add_account.rs:419 app/src/ui/sandbox_setup.rs:129
+#: app/src/ui/sandbox_setup.rs:136 app/src/ui/window.rs:1379
 msgid "Copy Command"
 msgstr "Copier la commande"
 
-#: app/src/ui/add_account.rs:429 app/src/ui/window.rs:1384
+#: app/src/ui/add_account.rs:429 app/src/ui/sandbox_setup.rs:143
+#: app/src/ui/window.rs:1384
 msgid "Command copied"
 msgstr "Commande copiée"
 
@@ -5313,7 +5319,7 @@ msgstr ""
 msgid "Name"
 msgstr "Nom"
 
-#: app/src/ui/assistant_mcp_prefs.rs:273
+#: app/src/ui/assistant_mcp_prefs.rs:273 app/src/ui/sandbox_setup.rs:125
 msgid "Command"
 msgstr "Commande"
 
@@ -8571,7 +8577,7 @@ msgid "This link contains hidden or direction-changing characters."
 msgstr ""
 "Ce lien contient des caractères invisibles ou qui changent le sens du texte."
 
-#: app/src/ui/mod.rs:466
+#: app/src/ui/mod.rs:468
 msgid "Gray"
 msgstr "Gris"
 
@@ -9374,6 +9380,50 @@ msgstr ""
 #: app/src/ui/rules.rs:697
 msgid "Replace"
 msgstr "Remplacer"
+
+#: app/src/ui/sandbox_setup.rs:30
+msgid "Check Again"
+msgstr "Vérifier à nouveau"
+
+#: app/src/ui/sandbox_setup.rs:37
+msgid "Allow Penguin Mail's Sandbox"
+msgstr "Autoriser le bac à sable de Penguin Mail"
+
+#: app/src/ui/sandbox_setup.rs:39
+msgid ""
+"Penguin Mail opens every message in a sandbox, and this system lets an app "
+"start one only when it is allowed. Run this in a terminal once to allow this "
+"copy, then choose Check Again."
+msgstr ""
+"Penguin Mail ouvre chaque message dans un bac à sable, et ce système ne "
+"laisse une application en lancer un que si elle y est autorisée. Exécutez "
+"ceci une fois dans un terminal pour autoriser cette copie, puis choisissez "
+"Vérifier à nouveau."
+
+#: app/src/ui/sandbox_setup.rs:48
+msgid "Install the Sandbox Tools"
+msgstr "Installer les outils du bac à sable"
+
+#: app/src/ui/sandbox_setup.rs:50
+msgid ""
+"Penguin Mail opens every message in a sandbox made with Bubblewrap. Install "
+"the bubblewrap and xdg-dbus-proxy packages, then choose Check Again."
+msgstr "Penguin Mail ouvre chaque message dans un bac à sable créé avec Bubblewrap. Installez les paquets bubblewrap et xdg-dbus-proxy, puis choisissez Vérifier à nouveau."
+
+#: app/src/ui/sandbox_setup.rs:62
+msgid ""
+"Or install Penguin Mail from <a href=\"https://flathub.org/apps/"
+"io.github.c9dev.penguin-mail\">Flathub</a> or the <a href=\"https://"
+"snapcraft.io/penguin-mail\">Snap Store</a>, which need no setup."
+msgstr ""
+"Vous pouvez aussi installer Penguin Mail depuis <a href=\"https://"
+"flathub.org/apps/io.github.c9dev.penguin-mail\">Flathub</a> ou le <a "
+"href=\"https://snapcraft.io/penguin-mail\">Snap Store</a>, qui ne demandent "
+"aucune configuration."
+
+#: app/src/ui/sandbox_setup.rs:94
+msgid "The sandbox still cannot start"
+msgstr "Le bac à sable ne peut toujours pas démarrer"
 
 #: app/src/ui/sender_prefs.rs:19
 msgid "Addresses You Send From"
@@ -12283,6 +12333,9 @@ msgstr "Marquer comme non indésirable"
 #: sync/src/triage.rs:70
 msgid "Move to {folder}"
 msgstr "Déplacer vers {folder}"
+
+#~ msgid "Install Bubblewrap"
+#~ msgstr "Installer Bubblewrap"
 
 #~ msgid "Send New Messages From"
 #~ msgstr "Envoyer les nouveaux messages depuis"

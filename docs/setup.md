@@ -401,9 +401,12 @@ instead of Linux's WebKitGTK and tray.
   cannot see those programs. A local model, the Anthropic API and MCP
   servers you reach by address work in every package. On macOS, install
   command-line programs separately and make them available on the app's PATH.
-- **No AppImage.** WebKit draws HTML mail in helper processes it
-  sandboxes with bubblewrap, and that sandbox mounts your system's `/usr`,
-  where helpers bundled in an AppImage find none of their libraries.
+- **AppImage.** The x86_64 AppImage carries the current app and its runtime
+  for Ubuntu 22.04 and newer, and Debian 13. It keeps WebKit and image-loader
+  sandboxes enabled and uses your desktop's services and GnuPG. On Ubuntu
+  24.04 it shows a command to run once, which lets it start those sandboxes.
+  Download a new AppImage to update. See [AppImage](appimage.md) for
+  installation, extraction mode, build instructions and testing limits.
 
 ## Where things live
 
