@@ -458,6 +458,11 @@ installed (`sudo apt install bubblewrap`). Inside the sandbox, the command:
 - is stopped after 60 seconds, and the assistant reads at most 1 MB of
   what it prints.
 
+The Nix package supplies Bash, Python 3, curl, jq, and common command-line
+tools for scripts. Its sandbox reads programs and libraries from
+`/nix/store` and hides Nix profiles. It does not inherit the tools or
+environment from your shell. See [the Nix guide](nix.md) to add other tools.
+
 The assistant can also feed a command text on standard input, such as a
 message it read. A script sees only what the assistant hands it.
 

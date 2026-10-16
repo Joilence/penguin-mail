@@ -17,6 +17,8 @@
   gnupg,
   bubblewrap,
   cacert,
+  callPackage,
+  skillRuntime ? callPackage ./skill-runtime.nix { },
   googleClientId ? "",
   googleClientSecret ? "",
   microsoftClientId ? "",
@@ -66,6 +68,9 @@ rustPlatform.buildRustPackage {
   PENGUIN_MAIL_GOOGLE_CLIENT_ID = googleClientId;
   PENGUIN_MAIL_GOOGLE_CLIENT_SECRET = googleClientSecret;
   PENGUIN_MAIL_MICROSOFT_CLIENT_ID = microsoftClientId;
+  PENGUIN_MAIL_SKILL_RUNTIME = skillRuntime;
+
+  passthru = { inherit skillRuntime; };
 
   cargoBuildFlags = [
     "-p"

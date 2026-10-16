@@ -40,10 +40,16 @@ NixOS or Home Manager configuration.
 Updates come through your Nix profile, NixOS configuration, or Home
 Manager configuration. The Nix build does not offer the app's own updater.
 
-Assistant skill scripts currently expect `/usr` and `/bin` in their
-bubblewrap sandbox. On NixOS that check may fail and the app will report
-that scripts cannot run. The rest of the assistant does not need that
-sandbox.
+Assistant skill scripts use the package's Bash, Python 3, curl, jq, and
+common command-line tools. Their sandbox mounts `/nix/store` read-only
+so those programs can load their libraries. It hides your home and Nix
+profiles, clears the environment, and blocks the network unless you allow
+it for the skill. Packages in the Nix store are readable inside the
+sandbox; keep private files outside the store.
+
+To add tools for a skill, override `skillRuntime` with a `pkgs.buildEnv`
+that combines the package's `skillRuntime` with the tools you need and
+links `/bin` and `/etc/ssl/certs`.
 
 ## Account sign-in
 
@@ -89,6 +95,8 @@ For translation work, install the Rust string extractor once with
 `nix flake check` builds the package and checks both executables' version
 commands. The Nix workflow also evaluates both Linux architectures and
 checks the development shell's compiler and native libraries.
+It also runs the skill sandbox tests with the Nix runtime and requires
+bubblewrap to work, so those tests cannot pass by skipping it.
 Run the workspace test suite and
 Clippy separately as described in [Contributing](../CONTRIBUTING.md#checks).
 The suite needs a display and session bus, and its server integration

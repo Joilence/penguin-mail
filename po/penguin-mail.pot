@@ -1777,14 +1777,14 @@ msgstr ""
 msgid "Claude Code"
 msgstr ""
 
-#: app/src/assistant/sources/skills/sandbox.rs:230
+#: app/src/assistant/sources/skills/sandbox.rs:250
 msgid ""
 "Skill scripts need bubblewrap, which is not installed. Install the "
 "bubblewrap package to run them."
 msgstr ""
 
-#: app/src/assistant/sources/skills/sandbox.rs:249
-#: app/src/assistant/sources/skills/sandbox.rs:255
+#: app/src/assistant/sources/skills/sandbox.rs:269
+#: app/src/assistant/sources/skills/sandbox.rs:275
 msgid ""
 "Skill scripts cannot run: bubblewrap failed to start a sandbox ({reason})."
 msgstr ""

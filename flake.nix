@@ -73,6 +73,7 @@
         {
           default = pkgs.mkShell {
             inputsFrom = [ penguin-mail ];
+            PENGUIN_MAIL_SKILL_RUNTIME = "${penguin-mail.skillRuntime}";
             packages = with pkgs; [
               cargo
               rustc
