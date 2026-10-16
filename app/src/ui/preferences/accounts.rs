@@ -37,9 +37,11 @@ impl Defaults {
             .sensitive(!app.mail_accounts().is_empty())
             .build();
         group.add(&all);
-        let tasks = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-            .title(gettext("Defaults by Task"))
-            .build());
+        let tasks = crate::ui::disclosure::row(
+            adw::ExpanderRow::builder()
+                .title(gettext("Defaults by Task"))
+                .build(),
+        );
         let mut rows = vec![general];
         for task in AccountUse::ALL {
             let picker = AccountPicker::new(app, Some(task));
@@ -394,7 +396,10 @@ impl Order {
             if focus.is_sensitive() {
                 focus.grab_focus();
             } else if let Some(entry) = self.entries.borrow().iter().find(|entry| {
-                entry.row.upgrade().is_some_and(|row| focus.is_ancestor(&row))
+                entry
+                    .row
+                    .upgrade()
+                    .is_some_and(|row| focus.is_ancestor(&row))
             }) {
                 for button in [&entry.up, &entry.down] {
                     if let Some(button) = button.upgrade().filter(|button| button.is_sensitive()) {

@@ -97,7 +97,10 @@ impl<G: GraphApi> Microsoft<G> {
             let mut start = state.folders.get(&folder).cloned();
             let to_the_end = restarted.is_some() && start.is_some();
             loop {
-                match self.read_folder(&folder, start, &mut removed, &mut present).await {
+                match self
+                    .read_folder(&folder, start, &mut removed, &mut present)
+                    .await
+                {
                     Ok(Left::Next(next)) if to_the_end => start = Some(next),
                     Ok(left) => {
                         state.folders.insert(folder, left.link());
@@ -133,12 +136,18 @@ impl<G: GraphApi> Microsoft<G> {
     /// Where every synced folder stands now, with no changes: each first
     /// round read to its end and thrown away but its link.
     async fn feed_start(&self, synced: Vec<String>) -> Result<Changes, BackendError> {
-        let mut state = MicrosoftState { days: Some(self.settings().window_days), ..MicrosoftState::default() };
+        let mut state = MicrosoftState {
+            days: Some(self.settings().window_days),
+            ..MicrosoftState::default()
+        };
         for folder in synced {
             let mut link = None;
             loop {
                 let (mut removed, mut present) = (Vec::new(), Vec::new());
-                match self.read_folder(&folder, link, &mut removed, &mut present).await? {
+                match self
+                    .read_folder(&folder, link, &mut removed, &mut present)
+                    .await?
+                {
                     Left::Delta(end) => {
                         state.folders.insert(folder, end);
                         break;
@@ -147,7 +156,10 @@ impl<G: GraphApi> Microsoft<G> {
                 }
             }
         }
-        Ok(Changes { changes: Vec::new(), state: state.written() })
+        Ok(Changes {
+            changes: Vec::new(),
+            state: state.written(),
+        })
     }
 
     /// Reads `folder` from `start` for at most [`PAGES_PER_LOOK`] pages.
@@ -163,7 +175,11 @@ impl<G: GraphApi> Microsoft<G> {
         let since = self.window_start();
         let mut link = start;
         for _ in 0..PAGES_PER_LOOK {
-            let page = self.graph().message_delta(folder, link.as_deref(), &since).await.map_err(backend)?;
+            let page = self
+                .graph()
+                .message_delta(folder, link.as_deref(), &since)
+                .await
+                .map_err(backend)?;
             for message in page.value {
                 match message.removed.is_some() {
                     true => removed.push((folder.to_string(), message.id)),
@@ -190,7 +206,10 @@ impl<G: GraphApi> Microsoft<G> {
         for (folder, id) in removed {
             match here.contains(id.as_str()) {
                 // Moved between two folders this look read.
-                true => changes.push(RemoteChange::Lost { id, memberships: vec![Membership::Mailbox(folder)] }),
+                true => changes.push(RemoteChange::Lost {
+                    id,
+                    memberships: vec![Membership::Mailbox(folder)],
+                }),
                 false => unpaired.push((folder, id)),
             }
         }
@@ -210,7 +229,10 @@ impl<G: GraphApi> Microsoft<G> {
                     if now_in == folder {
                         continue;
                     }
-                    changes.push(RemoteChange::Lost { id, memberships: vec![Membership::Mailbox(folder)] });
+                    changes.push(RemoteChange::Lost {
+                        id,
+                        memberships: vec![Membership::Mailbox(folder)],
+                    });
                     changes.extend(self.restated(&message, &now_in));
                 }
                 Err(GraphError::NotFound) => changes.push(RemoteChange::Deleted { id }),
@@ -224,28 +246,52 @@ impl<G: GraphApi> Microsoft<G> {
     /// mark it carries, a loss of each mark it lacks.
     fn restated(&self, message: &Message, folder: &str) -> Vec<RemoteChange> {
         let known = self.known();
-        let thread_id = message.conversation_id.clone().unwrap_or_else(|| message.id.clone());
+        let thread_id = message
+            .conversation_id
+            .clone()
+            .unwrap_or_else(|| message.id.clone());
         let mut gained = vec![Membership::Mailbox(folder.to_string())];
         let mut lost = Vec::new();
         let mut mark = |on: bool, membership: Membership| match on {
             true => gained.push(membership),
             false => lost.push(membership),
         };
-        mark(message.is_read == Some(true), Membership::Keyword(SEEN.into()));
+        mark(
+            message.is_read == Some(true),
+            Membership::Keyword(SEEN.into()),
+        );
         mark(message.is_flagged(), Membership::Keyword(FLAGGED.into()));
-        mark(message.is_other(), Membership::Category(category::OTHER.into()));
-        let carried: BTreeSet<&str> = message.categories.iter().flatten().map(String::as_str).collect();
+        mark(
+            message.is_other(),
+            Membership::Category(category::OTHER.into()),
+        );
+        let carried: BTreeSet<&str> = message
+            .categories
+            .iter()
+            .flatten()
+            .map(String::as_str)
+            .collect();
         for (name, id) in &known.tags {
-            mark(carried.contains(name.as_str()), Membership::Mailbox(id.clone()));
+            mark(
+                carried.contains(name.as_str()),
+                Membership::Mailbox(id.clone()),
+            );
         }
         // A category made since the last listing: the engine sees a
         // mailbox it has not listed and lists them again.
         for name in carried.iter().filter(|n| !known.tags.contains_key(**n)) {
             gained.push(Membership::Mailbox(tag_id(name)));
         }
-        let mut changes = vec![RemoteChange::Gained { id: message.id.clone(), thread_id, memberships: gained }];
+        let mut changes = vec![RemoteChange::Gained {
+            id: message.id.clone(),
+            thread_id,
+            memberships: gained,
+        }];
         if !lost.is_empty() {
-            changes.push(RemoteChange::Lost { id: message.id.clone(), memberships: lost });
+            changes.push(RemoteChange::Lost {
+                id: message.id.clone(),
+                memberships: lost,
+            });
         }
         changes
     }

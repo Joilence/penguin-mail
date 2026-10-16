@@ -18,8 +18,8 @@ use mailrs_gmail::LabelColor;
 use mailrs_mime::Parts;
 
 use super::{
-    Backfill, Changes, Found, IdentityService, KeywordsPage, MailBackend, MailCapabilities, RawMessage, Relocated,
-    RemoteRef, SearchQuery, SendAsAddress, SyncState, Unapplied, Want,
+    Backfill, Changes, Found, IdentityService, KeywordsPage, MailBackend, MailCapabilities,
+    RawMessage, Relocated, RemoteRef, SearchQuery, SendAsAddress, SyncState, Unapplied, Want,
 };
 use crate::api::{DraftRef, SavedDraft};
 use crate::{BackendError, MailOp};
@@ -85,7 +85,11 @@ impl MailBackend for NoMail {
         Err(BackendError::Unsupported)
     }
 
-    async fn set_mailbox_color(&self, _id: &str, _color: &LabelColor) -> Result<RemoteMailbox, BackendError> {
+    async fn set_mailbox_color(
+        &self,
+        _id: &str,
+        _color: &LabelColor,
+    ) -> Result<RemoteMailbox, BackendError> {
         Err(BackendError::Unsupported)
     }
 
@@ -121,7 +125,10 @@ impl MailBackend for NoMail {
         Err(BackendError::Unsupported)
     }
 
-    async fn keywords_stored(&self, _mailbox: &str) -> Result<&'static [&'static str], BackendError> {
+    async fn keywords_stored(
+        &self,
+        _mailbox: &str,
+    ) -> Result<&'static [&'static str], BackendError> {
         Err(BackendError::Unsupported)
     }
 
@@ -129,7 +136,11 @@ impl MailBackend for NoMail {
         Err(BackendError::Unsupported)
     }
 
-    async fn window_ids(&self, _days: i64, _mailbox: Option<&str>) -> Result<Vec<RemoteRef>, BackendError> {
+    async fn window_ids(
+        &self,
+        _days: i64,
+        _mailbox: Option<&str>,
+    ) -> Result<Vec<RemoteRef>, BackendError> {
         Err(BackendError::Unsupported)
     }
 
@@ -137,7 +148,11 @@ impl MailBackend for NoMail {
         Err(BackendError::Unsupported)
     }
 
-    async fn search(&self, _query: &SearchQuery, _limit: usize) -> Result<Vec<RemoteRef>, BackendError> {
+    async fn search(
+        &self,
+        _query: &SearchQuery,
+        _limit: usize,
+    ) -> Result<Vec<RemoteRef>, BackendError> {
         Err(BackendError::Unsupported)
     }
 
@@ -177,8 +192,16 @@ impl MailBackend for NoMail {
         MailSet::Mailbox(id.to_string())
     }
 
-    async fn apply(&self, _messages: &[String], _ops: &[MailOp]) -> Result<Vec<Relocated>, Unapplied> {
-        Err(Unapplied { taken: 0, error: BackendError::Unsupported, relocated: Vec::new() })
+    async fn apply(
+        &self,
+        _messages: &[String],
+        _ops: &[MailOp],
+    ) -> Result<Vec<Relocated>, Unapplied> {
+        Err(Unapplied {
+            taken: 0,
+            error: BackendError::Unsupported,
+            relocated: Vec::new(),
+        })
     }
 
     async fn send(&self, _raw: &[u8], _thread_id: Option<&str>) -> Result<String, BackendError> {

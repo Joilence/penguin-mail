@@ -30,7 +30,6 @@ impl Login {
         login.oauth = true;
         login
     }
-
 }
 
 /// What stands where the password was.
@@ -79,7 +78,9 @@ impl Login {
             password.escape_debug().to_string(),
             password.clone(),
         ];
-        if self.oauth { secrets.push(BASE64.encode(self.bearer_response())); }
+        if self.oauth {
+            secrets.push(BASE64.encode(self.bearer_response()));
+        }
         secrets.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
         secrets.dedup();
         secrets
@@ -153,8 +154,14 @@ mod tests {
     #[test]
     fn a_server_cannot_repeat_the_encoded_bearer_token_in_an_error() {
         let login = Login::bearer("ann@example.com", "sensitive-token");
-        let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, login.bearer_response());
-        assert_eq!(login.hide(&format!("NO rejected {encoded}")), "NO rejected <hidden>");
+        let encoded = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            login.bearer_response(),
+        );
+        assert_eq!(
+            login.hide(&format!("NO rejected {encoded}")),
+            "NO rejected <hidden>"
+        );
     }
 
     #[test]

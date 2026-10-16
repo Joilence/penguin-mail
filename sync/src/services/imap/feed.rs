@@ -209,7 +209,10 @@ impl<I: ImapApi, S: Submit> Imap<I, S> {
                     .collect();
                 let mut undeleted = Vec::new();
                 for report in selected.changed.iter().filter(|f| f.uid < kept.uidnext) {
-                    match (is_deleted(&report.flags), deleted.binary_search(&report.uid)) {
+                    match (
+                        is_deleted(&report.flags),
+                        deleted.binary_search(&report.uid),
+                    ) {
                         (true, Err(at)) => deleted.insert(at, report.uid),
                         (false, Ok(at)) => undeleted.push(deleted.remove(at)),
                         _ => {}
@@ -226,14 +229,18 @@ impl<I: ImapApi, S: Submit> Imap<I, S> {
                 (deleted, undeleted)
             }
             (false, true, Some(modseq)) => {
-                let found = self.present_and_deleted(&kept, mailbox, &selected, top, changes).await?;
+                let found = self
+                    .present_and_deleted(&kept, mailbox, &selected, top, changes)
+                    .await?;
                 if let Some(rest) = self.changed_since(&look, met, modseq, changes).await? {
                     changes.push(look.compare(rest));
                 }
                 found
             }
             _ => {
-                let found = self.present_and_deleted(&kept, mailbox, &selected, top, changes).await?;
+                let found = self
+                    .present_and_deleted(&kept, mailbox, &selected, top, changes)
+                    .await?;
                 if met.1 >= met.0 {
                     changes.push(look.compare(met.0..=met.1));
                 }

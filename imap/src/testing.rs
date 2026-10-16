@@ -190,7 +190,9 @@ async fn serve(
     }
     while let Some(command) = read_command(&mut read, &mut write).await {
         let (tag, body) = command.split_once(' ').unwrap_or((command.as_str(), ""));
-        let replies = if body.eq_ignore_ascii_case("AUTHENTICATE PLAIN") || body.eq_ignore_ascii_case("AUTHENTICATE OAUTHBEARER") {
+        let replies = if body.eq_ignore_ascii_case("AUTHENTICATE PLAIN")
+            || body.eq_ignore_ascii_case("AUTHENTICATE OAUTHBEARER")
+        {
             if send(&mut write, "+ ").await.is_none() {
                 return;
             }

@@ -80,7 +80,11 @@ impl UndoPill {
             .transition_duration(200)
             .child(&button)
             .build();
-        UndoPill { revealer, button, left }
+        UndoPill {
+            revealer,
+            button,
+            left,
+        }
     }
 
     /// Sets `left` ("0:07") at the pill's end. Private: go through
@@ -111,7 +115,10 @@ pub struct NextEvent {
 impl NextEvent {
     fn new() -> NextEvent {
         let bar = gtk::Box::builder().css_classes(["bar"]).build();
-        let when = gtk::Label::builder().xalign(0.0).css_classes(["when"]).build();
+        let when = gtk::Label::builder()
+            .xalign(0.0)
+            .css_classes(["when"])
+            .build();
         let what = gtk::Label::builder()
             .xalign(0.0)
             .ellipsize(pango::EllipsizeMode::End)
@@ -139,7 +146,11 @@ impl NextEvent {
             .build();
         let css = gtk::CssProvider::new();
         if let Some(display) = gdk::Display::default() {
-            gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+            gtk::style_context_add_provider_for_display(
+                &display,
+                &css,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
         }
         NextEvent {
             revealer,
@@ -166,8 +177,10 @@ impl NextEvent {
         // Loading a provider on the display restyles every widget in every
         // window, and this runs once a minute, so it loads only a new colour.
         if *self.colour.borrow() != colour {
-            self.bar.set_css_classes(&["bar", tint::css_class(colour).as_str()]);
-            self.css.load_from_string(&tint::stylesheet(&[colour.to_string()]));
+            self.bar
+                .set_css_classes(&["bar", tint::css_class(colour).as_str()]);
+            self.css
+                .load_from_string(&tint::stylesheet(&[colour.to_string()]));
             colour.clone_into(&mut self.colour.borrow_mut());
         }
         super::name(&self.button, &next::spoken(words));
@@ -225,10 +238,22 @@ impl Foot {
 mod foot_tests {
     use super::{Foot, Slot};
 
-    const CLOSED: Slot = Slot { reveals: false, revealed: false };
-    const OPENING: Slot = Slot { reveals: true, revealed: false };
-    const OPEN: Slot = Slot { reveals: true, revealed: true };
-    const CLOSING: Slot = Slot { reveals: false, revealed: true };
+    const CLOSED: Slot = Slot {
+        reveals: false,
+        revealed: false,
+    };
+    const OPENING: Slot = Slot {
+        reveals: true,
+        revealed: false,
+    };
+    const OPEN: Slot = Slot {
+        reveals: true,
+        revealed: true,
+    };
+    const CLOSING: Slot = Slot {
+        reveals: false,
+        revealed: true,
+    };
 
     #[test]
     fn a_revealer_takes_room_while_it_opens_shows_or_closes() {
@@ -354,7 +379,12 @@ impl Sidebar {
             .build();
         let badges = [
             (Space::Mail, "mail", gettext("Mail"), "mail-unread-symbolic"),
-            (Space::Calendar, "calendar", gettext("Calendar"), "x-office-calendar-symbolic"),
+            (
+                Space::Calendar,
+                "calendar",
+                gettext("Calendar"),
+                "x-office-calendar-symbolic",
+            ),
         ]
         .map(|(space, name, label, icon)| {
             let content = adw::ButtonContent::builder()
@@ -509,7 +539,11 @@ impl Sidebar {
                 Some(ListKey::Menu) => sidebar.open_options(),
                 None => false,
             };
-            if handled { glib::Propagation::Stop } else { glib::Propagation::Proceed }
+            if handled {
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
         });
         sidebar.list.add_controller(keys);
         // A press in the list puts the pointer in charge, so the keyboard's
@@ -554,15 +588,24 @@ impl Sidebar {
     /// The row the keyboard focus is on itself, not on a button inside it.
     fn focused_row(&self) -> Option<gtk::ListBoxRow> {
         let focus = self.list.root().and_then(|root| root.focus())?;
-        focus.downcast::<gtk::ListBoxRow>().ok().filter(|row| row.parent().as_ref() == Some(self.list.upcast_ref()))
+        focus
+            .downcast::<gtk::ListBoxRow>()
+            .ok()
+            .filter(|row| row.parent().as_ref() == Some(self.list.upcast_ref()))
     }
 
     /// Moves the focus out of the list, to the next control after it or
     /// the one before. The list stops taking the focus while the window
     /// looks for that control, so the search passes over its rows.
     fn leave_list(&self, forward: bool) -> bool {
-        let Some(root) = self.list.root() else { return false };
-        let direction = if forward { gtk::DirectionType::TabForward } else { gtk::DirectionType::TabBackward };
+        let Some(root) = self.list.root() else {
+            return false;
+        };
+        let direction = if forward {
+            gtk::DirectionType::TabForward
+        } else {
+            gtk::DirectionType::TabBackward
+        };
         self.list.set_can_focus(false);
         if !root.child_focus(direction) {
             // Past the window's last control: start again from its first,
@@ -579,7 +622,10 @@ impl Sidebar {
     /// selecting, so nothing loads until Enter or Space.
     fn step_focus(&self, step: i32) -> bool {
         let rows = self.list_rows();
-        let reachable: Vec<bool> = rows.iter().map(|row| keys::reachable(row_keys(row))).collect();
+        let reachable: Vec<bool> = rows
+            .iter()
+            .map(|row| keys::reachable(row_keys(row)))
+            .collect();
         let from = self
             .focused_row()
             .or_else(|| self.list.selected_row())
@@ -612,7 +658,9 @@ impl Sidebar {
     /// account heading or a label shows on hover. A row without one keeps
     /// the key for its own right-click menu (`context_menu`).
     fn open_options(&self) -> bool {
-        let Some(row) = self.focused_row() else { return false };
+        let Some(row) = self.focused_row() else {
+            return false;
+        };
         let mut stack: Vec<gtk::Widget> = row.first_child().into_iter().collect();
         while let Some(widget) = stack.pop() {
             if let Some(button) = widget.downcast_ref::<gtk::MenuButton>() {
@@ -628,7 +676,9 @@ impl Sidebar {
     /// Opens the mailbox under the focus, or opens or closes the account
     /// whose heading has it.
     fn open_focused(&self) -> bool {
-        let Some(row) = self.focused_row() else { return false };
+        let Some(row) = self.focused_row() else {
+            return false;
+        };
         if keys::on_enter(row_keys(&row)) == Some(ListKey::Menu) {
             return self.open_options();
         }
@@ -685,14 +735,19 @@ impl Sidebar {
     /// Puts each toggle's count on its badge, and in its name, so a
     /// screen reader hears "Mail, 12 unread" where the eye sees the pill.
     fn sync_badges(&self) {
-        let on_screen = if self.mail_showing.get() { Space::Mail } else { Space::Calendar };
+        let on_screen = if self.mail_showing.get() {
+            Space::Mail
+        } else {
+            Space::Calendar
+        };
         let badges = space_badges(on_screen, self.unread.get(), self.waiting.get());
         // An `adw::Toggle` is not a widget, and the group points each of
         // its buttons' `LabelledBy` at the toggle's content, which wins
         // over a label set later. The buttons are the group's radio
         // children, in the toggles' own order.
-        let buttons = std::iter::successors(self.switch.first_child(), |child| child.next_sibling())
-            .filter(|child| child.accessible_role() == gtk::AccessibleRole::Radio);
+        let buttons =
+            std::iter::successors(self.switch.first_child(), |child| child.next_sibling())
+                .filter(|child| child.accessible_role() == gtk::AccessibleRole::Radio);
         for ((space, badge), button) in self.badges.iter().zip(buttons) {
             let count = match space {
                 Space::Mail => badges.mail,
@@ -984,8 +1039,12 @@ impl Sidebar {
     fn add_place(&self, place: Place, vips: &[(String, String)]) {
         match place {
             Place::Unified(which) => {
-                let row =
-                    self.add_mailbox(Mailbox::Unified(which), &which.unified_name(), which.icon(), 0);
+                let row = self.add_mailbox(
+                    Mailbox::Unified(which),
+                    &which.unified_name(),
+                    which.icon(),
+                    0,
+                );
                 if which == Standard::Flagged
                     && let Some(icon) = row.child().and_then(|c| c.first_child())
                 {
@@ -1014,7 +1073,10 @@ impl Sidebar {
                     let row = self.add_mailbox(person, name, "avatar-default-symbolic", 1);
                     let menu = gio::Menu::new();
                     let item = gio::MenuItem::new(Some(&gettext("Remove from VIPs")), None);
-                    item.set_action_and_target_value(Some("win.vip-remove"), Some(&email.to_variant()));
+                    item.set_action_and_target_value(
+                        Some("win.vip-remove"),
+                        Some(&email.to_variant()),
+                    );
                     menu.append_item(&item);
                     context_menu(&row, &menu);
                 }
@@ -1037,7 +1099,12 @@ impl Sidebar {
                 // Send Later has the tray with an arrow, which the mockup
                 // pictures; the Outbox has a tray holding a letter, and
                 // `set_counts` swaps in a warning while a send has failed.
-                self.add_mailbox(Mailbox::Outbox, &gettext("Outbox"), sections::outbox_icon(0), 0);
+                self.add_mailbox(
+                    Mailbox::Outbox,
+                    &gettext("Outbox"),
+                    sections::outbox_icon(0),
+                    0,
+                );
             }
             Place::Scheduled => {
                 self.add_mailbox(
@@ -1048,7 +1115,12 @@ impl Sidebar {
                 );
             }
             Place::Reminders => {
-                self.add_mailbox(Mailbox::Reminders, &gettext("Remind Me"), "alarm-symbolic", 0);
+                self.add_mailbox(
+                    Mailbox::Reminders,
+                    &gettext("Remind Me"),
+                    "alarm-symbolic",
+                    0,
+                );
             }
             Place::FollowUp => {
                 self.add_mailbox(
@@ -1289,7 +1361,11 @@ impl Sidebar {
                 );
             let shown = count > 0 && (row.mailbox.counts_unread() || is_drafts);
             if row.mailbox == Mailbox::Outbox
-                && let Some(icon) = row.row.child().and_then(|c| c.first_child()).and_downcast::<gtk::Image>()
+                && let Some(icon) = row
+                    .row
+                    .child()
+                    .and_then(|c| c.first_child())
+                    .and_downcast::<gtk::Image>()
             {
                 icon.set_icon_name(Some(sections::outbox_icon(count)));
             }
@@ -1387,7 +1463,11 @@ pub struct SpaceBadges {
 
 pub fn space_badges(on_screen: Space, unread: i64, waiting: i64) -> SpaceBadges {
     SpaceBadges {
-        mail: if on_screen == Space::Calendar { unread } else { 0 },
+        mail: if on_screen == Space::Calendar {
+            unread
+        } else {
+            0
+        },
         calendar: if on_screen == Space::Mail { waiting } else { 0 },
     }
 }
@@ -1408,7 +1488,12 @@ pub fn toggle_name(space: Space, count: i64) -> String {
     match (space, count > 0) {
         (Space::Mail, false) => gettext("Mail"),
         (Space::Calendar, false) => gettext("Calendar"),
-        (Space::Mail, true) => fill_plural("Mail, {count} unread", "Mail, {count} unread", count as usize, &values),
+        (Space::Mail, true) => fill_plural(
+            "Mail, {count} unread",
+            "Mail, {count} unread",
+            count as usize,
+            &values,
+        ),
         (Space::Calendar, true) => fill_plural(
             "Calendar, {count} waiting for your answer",
             "Calendar, {count} waiting for your answer",
@@ -1525,7 +1610,13 @@ pub(super) fn tag_dot(color: Option<&str>) -> gtk::DrawingArea {
             f64::from(paint.blue()),
             f64::from(paint.alpha()),
         );
-        cr.arc(width / 2.0, height / 2.0, width.min(height) / 2.0, 0.0, std::f64::consts::TAU);
+        cr.arc(
+            width / 2.0,
+            height / 2.0,
+            width.min(height) / 2.0,
+            0.0,
+            std::f64::consts::TAU,
+        );
         // A failed fill leaves the dot out, which costs nothing but its
         // colour.
         let _ = cr.fill();
@@ -1568,7 +1659,13 @@ fn takes_mail(mailbox: &Mailbox) -> bool {
 /// A label row's menu, on a right click or long press and on the button
 /// at the row's end, which shows while the pointer or the keyboard is on
 /// the row.
-fn label_menu(row: &gtk::ListBoxRow, account_id: AccountId, label: &Label, filing: Filing, moves: tree::Moves) {
+fn label_menu(
+    row: &gtk::ListBoxRow,
+    account_id: AccountId,
+    label: &Label,
+    filing: Filing,
+    moves: tree::Moves,
+) {
     let menu = gio::Menu::new();
     let target = (account_id, label.id.clone()).to_variant();
     let item = |text: &str, action: &str| {
@@ -1618,7 +1715,10 @@ fn label_menu(row: &gtk::ListBoxRow, account_id: AccountId, label: &Label, filin
         .halign(gtk::Align::End)
         .tooltip_text(filing.options_tooltip())
         .build();
-    super::name(&options, &filing.options_name(&label.name.replace('/', " › ")));
+    super::name(
+        &options,
+        &filing.options_name(&label.name.replace('/', " › ")),
+    );
     super::name_menu_items_of(&options);
     // `.options-open` keeps the count hidden while the menu is open and
     // the pointer has left the row.
@@ -1675,11 +1775,15 @@ fn context_menu(row: &gtk::ListBoxRow, menu: &gio::Menu) {
     // row, which the list leaves to the row (`Sidebar::open_options`).
     let keys = gtk::EventControllerKey::new();
     keys.connect_key_pressed(move |controller, key, _, state| {
-        let focus = controller.widget().map_or(keys::Focus::InList, |row| focus_at(&row));
+        let focus = controller
+            .widget()
+            .map_or(keys::Focus::InList, |row| focus_at(&row));
         if keys::route(key, state, focus) != Some(ListKey::Menu) {
             return glib::Propagation::Proceed;
         }
-        let Some(row) = controller.widget() else { return glib::Propagation::Proceed };
+        let Some(row) = controller.widget() else {
+            return glib::Propagation::Proceed;
+        };
         show(f64::from(row.width()) / 2.0, f64::from(row.height()) / 2.0);
         glib::Propagation::Stop
     });
@@ -1920,7 +2024,10 @@ fn status_of(account: &Account) -> Option<(&'static str, String)> {
             "network-offline-symbolic",
             fill(
                 &gettext("{provider} is not responding; retrying"),
-                &[("provider", &mailrs_discover::resolved_provider_name(account.provider_name()))],
+                &[(
+                    "provider",
+                    &mailrs_discover::resolved_provider_name(account.provider_name()),
+                )],
             ),
         )),
         // A keyring read that never answers, often an unlock prompt
@@ -1945,9 +2052,7 @@ mod tests {
     use mailrs_domain::{Account, AccountState, Provider};
 
     use super::status_of;
-    use super::{
-        Mailbox, Standard, heading_row_name, label_icon, mailbox_row_name, takes_mail,
-    };
+    use super::{Mailbox, Standard, heading_row_name, label_icon, mailbox_row_name, takes_mail};
 
     use super::{Offers, account_settings};
 
@@ -1960,7 +2065,10 @@ mod tests {
             provider: Provider::Pop3,
             provider_name: Some("example.org".into()),
         };
-        assert_eq!(super::heading_tooltip(&pop3), "dana@example.org\nOn this computer");
+        assert_eq!(
+            super::heading_tooltip(&pop3),
+            "dana@example.org\nOn this computer"
+        );
         assert!(super::heading_description(&pop3).starts_with("On this computer."));
         let imap = Account {
             provider: Provider::Imap,
@@ -1976,7 +2084,10 @@ mod tests {
     #[test]
     fn a_label_account_opens_a_folder_row_under_a_tag() {
         assert_eq!(
-            label_icon(Offers { labels: true, ..Offers::EVERYTHING }),
+            label_icon(Offers {
+                labels: true,
+                ..Offers::EVERYTHING
+            }),
             "penguin-mail-tag-symbolic"
         );
     }
@@ -1984,7 +2095,10 @@ mod tests {
     #[test]
     fn a_folder_account_opens_a_folder_row_under_a_folder() {
         assert_eq!(
-            label_icon(Offers { labels: false, ..Offers::EVERYTHING }),
+            label_icon(Offers {
+                labels: false,
+                ..Offers::EVERYTHING
+            }),
             "folder-symbolic"
         );
     }
@@ -2008,8 +2122,14 @@ mod tests {
             ..fastmail.clone()
         };
         let said = |account: &Account| status_of(account).map(|(_, said)| said);
-        assert_eq!(said(&gmail).as_deref(), Some("Gmail is not responding; retrying"));
-        assert_eq!(said(&fastmail).as_deref(), Some("Fastmail is not responding; retrying"));
+        assert_eq!(
+            said(&gmail).as_deref(),
+            Some("Gmail is not responding; retrying")
+        );
+        assert_eq!(
+            said(&fastmail).as_deref(),
+            Some("Fastmail is not responding; retrying")
+        );
         assert_eq!(
             said(&by_domain).as_deref(),
             Some("Fastmail is not responding; retrying"),
@@ -2028,7 +2148,10 @@ mod tests {
         };
         assert_eq!(
             status_of(&waiting),
-            Some(("dialog-password-symbolic", "The keyring is not responding; retrying".to_string()))
+            Some((
+                "dialog-password-symbolic",
+                "The keyring is not responding; retrying".to_string()
+            ))
         );
     }
 
@@ -2045,7 +2168,10 @@ mod tests {
     }
 
     fn actions(offers: Offers) -> Vec<&'static str> {
-        account_settings(offers).into_iter().map(|(_, action)| action).collect()
+        account_settings(offers)
+            .into_iter()
+            .map(|(_, action)| action)
+            .collect()
     }
 
     #[test]
@@ -2101,11 +2227,23 @@ mod tests {
     fn inbox_flagged_and_muted_take_dropped_mail() {
         for which in [Standard::Inbox, Standard::Flagged, Standard::Muted] {
             assert!(takes_mail(&Mailbox::Unified(which)), "{which:?}");
-            assert!(takes_mail(&Mailbox::Standard { account_id: 1, which }), "{which:?}");
+            assert!(
+                takes_mail(&Mailbox::Standard {
+                    account_id: 1,
+                    which
+                }),
+                "{which:?}"
+            );
         }
         for which in [Standard::Sent, Standard::Drafts] {
             assert!(!takes_mail(&Mailbox::Unified(which)), "{which:?}");
-            assert!(!takes_mail(&Mailbox::Standard { account_id: 1, which }), "{which:?}");
+            assert!(
+                !takes_mail(&Mailbox::Standard {
+                    account_id: 1,
+                    which
+                }),
+                "{which:?}"
+            );
         }
     }
 }
@@ -2148,7 +2286,10 @@ mod badge_tests {
     #[test]
     fn a_toggle_says_its_count_out_loud() {
         assert_eq!(toggle_name(Space::Mail, 12), "Mail, 12 unread");
-        assert_eq!(toggle_name(Space::Calendar, 1), "Calendar, 1 waiting for your answer");
+        assert_eq!(
+            toggle_name(Space::Calendar, 1),
+            "Calendar, 1 waiting for your answer"
+        );
         assert_eq!(toggle_name(Space::Mail, 0), "Mail");
     }
 }

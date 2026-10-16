@@ -91,7 +91,12 @@ pub async fn seed(
     }
     // Nobody listens yet: the window reads the store once it opens.
     let (events, _) = async_channel::unbounded();
-    let sync = Arc::new(AccountSync::new(account_id, services(&dav), db.clone(), events));
+    let sync = Arc::new(AccountSync::new(
+        account_id,
+        services(&dav),
+        db.clone(),
+        events,
+    ));
     Ok((account_id, dav, sync))
 }
 
@@ -100,13 +105,38 @@ pub async fn seed(
 fn household(now: EpochMillis) -> Vec<(String, String)> {
     let monday = week_monday(now);
     let event = |uid: &str, title: &str, start: EpochMillis, minutes: i64, rule: &str| {
-        let body = caldav_event("Nextcloud", now, uid, title, start..start + minutes * 60_000, rule);
+        let body = caldav_event(
+            "Nextcloud",
+            now,
+            uid,
+            title,
+            start..start + minutes * 60_000,
+            rule,
+        );
         (format!("{HOUSEHOLD}{uid}.ics"), body)
     };
     vec![
-        event("piano", "Piano lesson", at_week(monday, 1, 16, 30), 45, "RRULE:FREQ=WEEKLY\r\n"),
-        event("recycling", "Recycling goes out", at_week(monday, 3, 7, 30), 15, ""),
-        event("dinner-marta", "Dinner at Marta's", at_week(monday, 4, 19, 30), 150, ""),
+        event(
+            "piano",
+            "Piano lesson",
+            at_week(monday, 1, 16, 30),
+            45,
+            "RRULE:FREQ=WEEKLY\r\n",
+        ),
+        event(
+            "recycling",
+            "Recycling goes out",
+            at_week(monday, 3, 7, 30),
+            15,
+            "",
+        ),
+        event(
+            "dinner-marta",
+            "Dinner at Marta's",
+            at_week(monday, 4, 19, 30),
+            150,
+            "",
+        ),
     ]
 }
 
@@ -125,11 +155,20 @@ mod tests {
     const WEEK: i64 = 7 * 24 * 3_600_000;
 
     /// The seeded account, its server, and a copy that reads it.
-    async fn seeded() -> (Db, AccountId, Arc<FakeDav>, CalendarCopy<Seeding>, tempfile::TempDir) {
+    async fn seeded() -> (
+        Db,
+        AccountId,
+        Arc<FakeDav>,
+        CalendarCopy<Seeding>,
+        tempfile::TempDir,
+    ) {
         let dir = tempfile::tempdir().unwrap();
         let db = Db::open(&dir.path().join("demo.db")).unwrap();
         let (id, dav, sync) = seed(&db, now_millis()).await.unwrap();
-        let alone = Seeding { syncing: HashMap::from([(id, sync)]), own_services: HashMap::new() };
+        let alone = Seeding {
+            syncing: HashMap::from([(id, sync)]),
+            own_services: HashMap::new(),
+        };
         let copy = CalendarCopy::new(Arc::new(alone), db.clone());
         (db, id, dav, copy, dir)
     }
@@ -137,23 +176,41 @@ mod tests {
     #[tokio::test]
     async fn the_calendar_account_has_a_calendar_with_this_weeks_events_and_no_mail() {
         let (db, id, dav, copy, _dir) = seeded().await;
-        let account = db.read(move |c| accounts::account(c, id)).await.unwrap().expect("the account");
-        assert_eq!((account.email.as_str(), account.provider), (NAME, Provider::CalDav));
+        let account = db
+            .read(move |c| accounts::account(c, id))
+            .await
+            .unwrap()
+            .expect("the account");
+        assert_eq!(
+            (account.email.as_str(), account.provider),
+            (NAME, Provider::CalDav)
+        );
         assert!(!services(&dav).serves_mail());
 
         let now = now_millis();
         copy.refresh(id, now).await.unwrap();
         let calendars = db.read(move |c| store::calendars(c, id)).await.unwrap();
-        assert_eq!(calendars.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["Household"]);
+        assert_eq!(
+            calendars
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Household"]
+        );
         let titles: HashSet<String> = db
-            .read(move |c| store::occurrences(c, &[id], now - WEEK, now + WEEK, store::CalendarScope::All))
+            .read(move |c| {
+                store::occurrences(c, &[id], now - WEEK, now + WEEK, store::CalendarScope::All)
+            })
             .await
             .unwrap()
             .into_iter()
             .map(|occurrence| occurrence.event.title.clone())
             .collect();
         for title in ["Piano lesson", "Recycling goes out", "Dinner at Marta's"] {
-            assert!(titles.contains(title), "{title} is on the calendar: {titles:?}");
+            assert!(
+                titles.contains(title),
+                "{title} is on the calendar: {titles:?}"
+            );
         }
     }
 
@@ -163,7 +220,12 @@ mod tests {
         dav.refuse_login(true);
         // The read fails, and what it leaves behind is the point.
         let _ = copy.refresh(id, now_millis()).await;
-        let state = db.read(move |c| accounts::account(c, id)).await.unwrap().expect("the account").state;
+        let state = db
+            .read(move |c| accounts::account(c, id))
+            .await
+            .unwrap()
+            .expect("the account")
+            .state;
         assert_eq!(state, AccountState::NeedsReauth);
     }
 }

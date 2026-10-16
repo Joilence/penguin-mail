@@ -103,10 +103,20 @@ impl Settings {
     }
 
     /// Resolves removed accounts through the task's automatic behavior.
-    pub fn preferred_live_account<'a>(&'a self, task: AccountUse, emails: &[&str]) -> Option<&'a str> {
-        let live = |email: &&str| emails.iter().any(|current| current.eq_ignore_ascii_case(email));
+    pub fn preferred_live_account<'a>(
+        &'a self,
+        task: AccountUse,
+        emails: &[&str],
+    ) -> Option<&'a str> {
+        let live = |email: &&str| {
+            emails
+                .iter()
+                .any(|current| current.eq_ignore_ascii_case(email))
+        };
         self.preferred_account(task).filter(live).or_else(|| {
-            (task == AccountUse::Assistant).then(|| self.preferred_account(AccountUse::NewMessages).filter(live)).flatten()
+            (task == AccountUse::Assistant)
+                .then(|| self.preferred_account(AccountUse::NewMessages).filter(live))
+                .flatten()
         })
     }
 
@@ -175,7 +185,10 @@ impl Settings {
 /// The accounts a picker for `task` offers, in the order given. Only
 /// calendar events can go to a calendar account; every other task, and
 /// the default account over them all (`None`), sends or reads mail.
-pub fn accounts_for(task: Option<AccountUse>, accounts: &[mailrs_domain::Account]) -> Vec<mailrs_domain::Account> {
+pub fn accounts_for(
+    task: Option<AccountUse>,
+    accounts: &[mailrs_domain::Account],
+) -> Vec<mailrs_domain::Account> {
     match task {
         Some(AccountUse::Calendar) => accounts.to_vec(),
         None
@@ -231,11 +244,22 @@ mod tests {
             provider,
             provider_name: None,
         };
-        let all = [account(1, mailrs_domain::Provider::Imap), account(2, mailrs_domain::Provider::CalDav)];
-        let ids = |task| accounts_for(task, &all).iter().map(|a| a.id).collect::<Vec<_>>();
+        let all = [
+            account(1, mailrs_domain::Provider::Imap),
+            account(2, mailrs_domain::Provider::CalDav),
+        ];
+        let ids = |task| {
+            accounts_for(task, &all)
+                .iter()
+                .map(|a| a.id)
+                .collect::<Vec<_>>()
+        };
         assert_eq!(ids(Some(AccountUse::Calendar)), [1, 2]);
         assert_eq!(ids(None), [1], "the default account writes mail");
-        for task in AccountUse::ALL.into_iter().filter(|task| *task != AccountUse::Calendar) {
+        for task in AccountUse::ALL
+            .into_iter()
+            .filter(|task| *task != AccountUse::Calendar)
+        {
             assert_eq!(ids(Some(task)), [1], "{task:?}");
         }
     }
@@ -243,11 +267,18 @@ mod tests {
     #[test]
     fn moving_the_accounts_a_list_shows_keeps_the_others_in_place() {
         let saved = |settings: &Settings| settings.account_order.join(" ");
-        let order = |emails: &[&str]| Settings { account_order: emails.iter().map(|e| e.to_string()).collect(), ..Settings::default() };
+        let order = |emails: &[&str]| Settings {
+            account_order: emails.iter().map(|e| e.to_string()).collect(),
+            ..Settings::default()
+        };
         let mut settings = order(&["a", "cal", "b", "c"]);
         let shown = ["a", "b", "c"];
         settings.move_account(&shown, "b", -1);
-        assert_eq!(saved(&settings), "b cal a c", "the calendar account keeps its place");
+        assert_eq!(
+            saved(&settings),
+            "b cal a c",
+            "the calendar account keeps its place"
+        );
         settings.reorder_account(&shown, "c", "b", false);
         assert_eq!(saved(&settings), "c cal b a");
 
@@ -262,7 +293,13 @@ mod tests {
         let mut settings = Settings::default();
         settings.account_defaults.assistant = AccountChoice::Account("removed@example.com".into());
         settings.account_defaults.new_messages = AccountChoice::Account("work@example.com".into());
-        assert_eq!(settings.preferred_live_account(AccountUse::Assistant, &["personal@example.com", "work@example.com"]), Some("work@example.com"));
+        assert_eq!(
+            settings.preferred_live_account(
+                AccountUse::Assistant,
+                &["personal@example.com", "work@example.com"]
+            ),
+            Some("work@example.com")
+        );
     }
 
     #[test]

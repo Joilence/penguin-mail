@@ -31,7 +31,13 @@ async fn answering(server: &MockServer, extra: &[&str], answer: Value) {
 }
 
 async fn sent(server: &MockServer) -> Value {
-    let posted = server.received_requests().await.unwrap().into_iter().find(|r| r.method.as_str() == "POST").unwrap();
+    let posted = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|r| r.method.as_str() == "POST")
+        .unwrap();
     serde_json::from_slice(&posted.body).unwrap()
 }
 
@@ -59,14 +65,25 @@ async fn quotas_come_from_quota_get() {
     assert_eq!(quotas[0].hard_limit, 1_073_741_824);
     assert_eq!(quotas[0].warn_limit, Some(966_367_641));
     let body = sent(&server).await;
-    assert_eq!(body["using"], json!(["urn:ietf:params:jmap:core", MAIL, QUOTA]));
+    assert_eq!(
+        body["using"],
+        json!(["urn:ietf:params:jmap:core", MAIL, QUOTA])
+    );
 }
 
 #[tokio::test]
 async fn a_session_without_quotas_is_refused_before_a_call() {
     let server = MockServer::start().await;
-    answering(&server, &[], json!({"sessionState": "s1", "methodResponses": []})).await;
-    assert!(matches!(client(&server).quotas().await, Err(mailrs_jmap::JmapError::UnknownCapability(_))));
+    answering(
+        &server,
+        &[],
+        json!({"sessionState": "s1", "methodResponses": []}),
+    )
+    .await;
+    assert!(matches!(
+        client(&server).quotas().await,
+        Err(mailrs_jmap::JmapError::UnknownCapability(_))
+    ));
 }
 
 #[test]
@@ -99,22 +116,48 @@ async fn a_receipt_names_the_message_and_marks_it_sent() {
     let body = sent(&server).await;
     let call = &body["methodCalls"][0][1];
     assert_eq!(call["send"]["k"]["forEmailId"], "M1");
-    assert_eq!(call["send"]["k"]["subject"], "Read: Rota", "the app's own words, never the server's English");
+    assert_eq!(
+        call["send"]["k"]["subject"], "Read: Rota",
+        "the app's own words, never the server's English"
+    );
     assert_eq!(call["send"]["k"]["disposition"]["type"], "displayed");
-    assert_eq!(call["send"]["k"]["disposition"]["sendingMode"], "mdn-sent-manually");
-    assert_eq!(call["onSuccessUpdateEmail"]["#k"]["keywords/$mdnsent"], true);
-    assert!(body["using"].as_array().unwrap().contains(&json!("urn:ietf:params:jmap:mail")));
+    assert_eq!(
+        call["send"]["k"]["disposition"]["sendingMode"],
+        "mdn-sent-manually"
+    );
+    assert_eq!(
+        call["onSuccessUpdateEmail"]["#k"]["keywords/$mdnsent"],
+        true
+    );
+    assert!(
+        body["using"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("urn:ietf:params:jmap:mail"))
+    );
 }
 
 #[tokio::test]
 async fn a_receipt_the_server_would_not_send_says_why() {
     let server = MockServer::start().await;
-    answering(&server, &[MDN], json!({"sessionState": "s1", "methodResponses": [
-        ["MDN/send", {"accountId": "A1", "notSent": {"k": {"type": "mdnAlreadySent"}}}, "c0"]
-    ]})).await;
-    let mdn = MdnOut { for_email_id: "M1".into(), identity_id: "I1".into(), subject: "s".into(), text_body: "t".into() };
+    answering(
+        &server,
+        &[MDN],
+        json!({"sessionState": "s1", "methodResponses": [
+            ["MDN/send", {"accountId": "A1", "notSent": {"k": {"type": "mdnAlreadySent"}}}, "c0"]
+        ]}),
+    )
+    .await;
+    let mdn = MdnOut {
+        for_email_id: "M1".into(),
+        identity_id: "I1".into(),
+        subject: "s".into(),
+        text_body: "t".into(),
+    };
     let refused = client(&server).send_mdn(&mdn).await.unwrap_err();
-    assert!(matches!(refused, mailrs_jmap::JmapError::Method { ref kind, .. } if kind == "mdnAlreadySent"));
+    assert!(
+        matches!(refused, mailrs_jmap::JmapError::Method { ref kind, .. } if kind == "mdnAlreadySent")
+    );
 }
 
 #[test]
@@ -129,12 +172,20 @@ async fn quota_reads_use_the_mail_account_without_a_quota_primary() {
     let mut session = session_on(&server.uri(), json!({}));
     session["capabilities"][QUOTA] = json!({});
     session["accounts"]["A1"]["accountCapabilities"][QUOTA] = json!({});
-    Mock::given(method("GET")).and(path("/jmap/session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(session)).mount(&server).await;
-    Mock::given(method("POST")).and(path("/api/"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"sessionState":"s1","methodResponses":[
-            ["Quota/get", {"accountId":"A1","state":"q1","list":[],"notFound":[]}, "c0"]
-        ]}))).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/jmap/session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(session))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"sessionState":"s1","methodResponses":[
+                ["Quota/get", {"accountId":"A1","state":"q1","list":[],"notFound":[]}, "c0"]
+            ]}),
+        ))
+        .mount(&server)
+        .await;
     assert!(client(&server).quotas().await.is_ok());
     assert_eq!(sent(&server).await["methodCalls"][0][1]["accountId"], "A1");
 }
@@ -147,12 +198,20 @@ async fn a_quota_primary_for_another_account_does_not_redirect_mail_usage() {
     session["accounts"]["A1"]["accountCapabilities"][QUOTA] = json!({});
     session["accounts"]["A2"] = json!({"name":"other", "accountCapabilities":{QUOTA:{}}});
     session["primaryAccounts"][QUOTA] = json!("A2");
-    Mock::given(method("GET")).and(path("/jmap/session"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(session)).mount(&server).await;
-    Mock::given(method("POST")).and(path("/api/"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"sessionState":"s1","methodResponses":[
-            ["Quota/get", {"accountId":"A1","state":"q1","list":[],"notFound":[]}, "c0"]
-        ]}))).mount(&server).await;
+    Mock::given(method("GET"))
+        .and(path("/jmap/session"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(session))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"sessionState":"s1","methodResponses":[
+                ["Quota/get", {"accountId":"A1","state":"q1","list":[],"notFound":[]}, "c0"]
+            ]}),
+        ))
+        .mount(&server)
+        .await;
     assert!(client(&server).quotas().await.is_ok());
     assert_eq!(sent(&server).await["methodCalls"][0][1]["accountId"], "A1");
 }

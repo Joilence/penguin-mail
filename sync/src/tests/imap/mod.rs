@@ -48,7 +48,11 @@ pub(super) fn offering(change: impl FnOnce(&mut Capabilities)) -> FakeImap {
 /// test that measures what one call costs.
 pub(super) fn adapter(imap: FakeImap) -> (Arc<FakeImap>, Imap<FakeImap, FakeSmtp>) {
     let imap = Arc::new(imap);
-    let adapter = Imap::new(Arc::clone(&imap), Arc::new(FakeSmtp::default()), fake_settings());
+    let adapter = Imap::new(
+        Arc::clone(&imap),
+        Arc::new(FakeSmtp::default()),
+        fake_settings(),
+    );
     (imap, adapter)
 }
 

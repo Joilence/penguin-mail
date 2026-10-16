@@ -63,7 +63,8 @@ async fn bodies_are_fetched_once_then_served_from_the_cache() {
 async fn bodies_of_unstored_messages_are_not_cached() {
     let h = harness().await;
     h.fake.with(|s| {
-        s.messages.insert("x".into(), meta("x", "t1", 1, &["INBOX"]));
+        s.messages
+            .insert("x".into(), meta("x", "t1", 1, &["INBOX"]));
         s.bodies.insert("x".into(), MessageBody::default());
     });
     h.sync.body("x").await.unwrap();
@@ -316,7 +317,8 @@ async fn the_body_cache_keeps_to_its_cap() {
 async fn opening_a_body_then_its_file_asks_gmail_once() {
     let h = harness().await;
     h.fake.with(|s| {
-        s.messages.insert("m1".into(), meta("m1", "t1", 1, &["INBOX"]));
+        s.messages
+            .insert("m1".into(), meta("m1", "t1", 1, &["INBOX"]));
         s.bodies.insert(
             "m1".into(),
             MessageBody {
@@ -332,12 +334,16 @@ async fn opening_a_body_then_its_file_asks_gmail_once() {
                 ..MessageBody::default()
             },
         );
-        s.attachments.insert(("m1".into(), "h1".into()), vec![1, 2, 3]);
+        s.attachments
+            .insert(("m1".into(), "h1".into()), vec![1, 2, 3]);
     });
     h.sync.ensure_thread("t1").await.unwrap();
     let body = h.sync.body("m1").await.unwrap();
     let path = body.attachments[0].attachment_id.clone().unwrap();
     assert_eq!(path, crate::fake::attachment_path(0));
     assert_eq!(h.sync.attachment("m1", &path).await.unwrap(), vec![1, 2, 3]);
-    assert_eq!(h.fake.with(|s| (s.raw_fetches, s.structure_fetches)), (1, 0));
+    assert_eq!(
+        h.fake.with(|s| (s.raw_fetches, s.structure_fetches)),
+        (1, 0)
+    );
 }

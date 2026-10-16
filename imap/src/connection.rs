@@ -70,7 +70,9 @@ impl Authenticator for Bearer<'_> {
     type Response = String;
 
     fn process(&mut self, _challenge: &[u8]) -> String {
-        if self.sent { return "\x01".into(); }
+        if self.sent {
+            return "\x01".into();
+        }
         self.sent = true;
         self.login.bearer_response()
     }
@@ -129,9 +131,13 @@ impl<S: Stream> Conn<S> {
         let has = |atom: &str| before.atoms.iter().any(|a| a == atom);
         let session = if login.oauth {
             if !has("AUTH=OAUTHBEARER") {
-                return Err(ImapError::Protocol("the server does not offer OAUTHBEARER".into()));
+                return Err(ImapError::Protocol(
+                    "the server does not offer OAUTHBEARER".into(),
+                ));
             }
-            client.authenticate("OAUTHBEARER", Bearer { login, sent: false }).await
+            client
+                .authenticate("OAUTHBEARER", Bearer { login, sent: false })
+                .await
                 .map_err(|(err, _)| from_async_imap(err, Doing::Login))?
         } else if has("AUTH=PLAIN") {
             client
@@ -535,7 +541,11 @@ impl<S: Stream> Conn<S> {
                             outcome,
                         } => {
                             return Err(ImapError::Network(clipped(
-                                outcome.information.as_deref().unwrap_or_default().to_string(),
+                                outcome
+                                    .information
+                                    .as_deref()
+                                    .unwrap_or_default()
+                                    .to_string(),
                             )));
                         }
                         _ => Woke::Changed,
@@ -700,7 +710,13 @@ fn ended(
     tag: &RequestId,
     doing: Doing<'_>,
 ) -> Option<Result<(), ImapError>> {
-    let text = |outcome: &Outcome<'_>| outcome.information.as_deref().unwrap_or_default().to_string();
+    let text = |outcome: &Outcome<'_>| {
+        outcome
+            .information
+            .as_deref()
+            .unwrap_or_default()
+            .to_string()
+    };
     match response {
         // A tag has no length limit, so the text is clipped.
         Response::Done { tag: other, .. } if other != tag => {
@@ -761,7 +777,11 @@ async fn raw_capability<S: Stream>(
             return match status {
                 Status::Ok => Ok(()),
                 _ => Err(ImapError::Protocol(clipped(
-                    outcome.information.as_deref().unwrap_or_default().to_string(),
+                    outcome
+                        .information
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_string(),
                 ))),
             };
         }
@@ -910,20 +930,39 @@ mod tests {
     async fn oauth_never_falls_back_to_sending_the_token_as_a_password() {
         let log = log();
         let stream = pipe(GREETING, server(ALL, log.clone(), |_| vec![]));
-        assert!(Conn::login(stream, false, &Login::bearer("ann@example.com", "token")).await.is_err());
+        assert!(
+            Conn::login(stream, false, &Login::bearer("ann@example.com", "token"))
+                .await
+                .is_err()
+        );
         assert!(seen(&log).is_empty(), "no password command may be sent");
     }
 
     #[tokio::test]
     async fn oauth_quota_connection_authenticates_with_bearer_instead_of_password() {
         let log = log();
-        let stream = pipe("* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN AUTH=OAUTHBEARER] ready",
+        let stream = pipe(
+            "* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN AUTH=OAUTHBEARER] ready",
             server("QUOTA", log.clone(), |command| {
-                if command.starts_with("AUTHENTICATE OAUTHBEARER ") { vec!["{tag} OK signed in".into()] } else { vec![] }
-            }));
-        Conn::login(stream, false, &Login::bearer("ann@example.com", "access-token")).await.unwrap();
+                if command.starts_with("AUTHENTICATE OAUTHBEARER ") {
+                    vec!["{tag} OK signed in".into()]
+                } else {
+                    vec![]
+                }
+            }),
+        );
+        Conn::login(
+            stream,
+            false,
+            &Login::bearer("ann@example.com", "access-token"),
+        )
+        .await
+        .unwrap();
         let commands = seen(&log);
-        assert!(commands[0].starts_with("AUTHENTICATE OAUTHBEARER "), "{commands:?}");
+        assert!(
+            commands[0].starts_with("AUTHENTICATE OAUTHBEARER "),
+            "{commands:?}"
+        );
     }
 
     #[tokio::test]

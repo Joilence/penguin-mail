@@ -14,7 +14,7 @@ use futures::stream::FuturesUnordered;
 use mailrs_domain::{AccountId, Category, Folder, Target, ThreadSummary};
 use mailrs_sync::{Changed, Listing, Loaded, PAGE, Scope, Stop, View};
 
-use super::{Answer, Lists, ListingRun, Pane, Work};
+use super::{Answer, ListingRun, Lists, Pane, Work};
 use crate::ui::Mailbox;
 use crate::ui::list_feed::{Named, Refresh, order};
 use crate::ui::window::on_screen::{Redraw, Revealed};
@@ -190,7 +190,11 @@ impl Pane for Fake {
 
     fn follows(&self, mailbox: &Mailbox) -> Option<(AccountId, String)> {
         match mailbox {
-            Mailbox::Label { account_id, label_id, .. } => Some((*account_id, label_id.clone())),
+            Mailbox::Label {
+                account_id,
+                label_id,
+                ..
+            } => Some((*account_id, label_id.clone())),
             _ => None,
         }
     }
@@ -210,7 +214,8 @@ impl Pane for Fake {
     fn set_rows(&self, listing: Listing) {
         self.call(Call::SetRows);
         self.with(|s| {
-            s.pages.push(listing.rows.iter().map(|r| r.id.clone()).collect());
+            s.pages
+                .push(listing.rows.iter().map(|r| r.id.clone()).collect());
             s.rows = listing.rows;
             s.spinner = false;
         });
@@ -224,8 +229,11 @@ impl Pane for Fake {
     fn replace(&self, changed: &[Named], rows: Vec<ThreadSummary>, _title: &str, _subtitle: &str) {
         self.call(Call::Replace);
         self.with(|s| {
-            s.rows
-                .retain(|r| !changed.iter().any(|(a, id)| *a == r.account_id && *id == r.id));
+            s.rows.retain(|r| {
+                !changed
+                    .iter()
+                    .any(|(a, id)| *a == r.account_id && *id == r.id)
+            });
             for row in rows {
                 let at = s.rows.partition_point(|held| order(held) > order(&row));
                 s.rows.insert(at, row);
@@ -254,7 +262,13 @@ impl Pane for Fake {
 }
 
 impl Lists for Fake {
-    fn list(&self, mailbox: Mailbox, _scope: Scope, _view: View, held: Loaded) -> Answer<'_, anyhow::Result<Listing>> {
+    fn list(
+        &self,
+        mailbox: Mailbox,
+        _scope: Scope,
+        _view: View,
+        held: Loaded,
+    ) -> Answer<'_, anyhow::Result<Listing>> {
         if held.count > 0 {
             self.with(|s| s.held.push(held.count));
         }
@@ -292,12 +306,21 @@ impl Lists for Fake {
         self.answer(Call::ServerSearch, Ok(found(&query, "server")))
     }
 
-    fn changed(&self, mailbox: Mailbox, named: Vec<Named>, _view: View) -> Answer<'_, Option<Changed>> {
+    fn changed(
+        &self,
+        mailbox: Mailbox,
+        named: Vec<Named>,
+        _view: View,
+    ) -> Answer<'_, Option<Changed>> {
         let changed = (!mailbox.is_remote()).then(|| Changed {
             rows: self.with(|s| {
                 s.store
                     .iter()
-                    .filter(|r| named.iter().any(|(a, id)| *a == r.account_id && *id == r.id))
+                    .filter(|r| {
+                        named
+                            .iter()
+                            .any(|(a, id)| *a == r.account_id && *id == r.id)
+                    })
                     .cloned()
                     .collect()
             }),

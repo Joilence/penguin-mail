@@ -124,10 +124,16 @@ fn extending_the_window_starts_the_backfill_again_in_the_same_generation() {
     accounts::set_backfill(&conn, id, Some("p2"), false).unwrap();
     assert!(accounts::sync_cursor(&conn, id).unwrap().backfill_extends);
     accounts::set_backfill(&conn, id, None, true).unwrap();
-    assert!(!accounts::sync_cursor(&conn, id).unwrap().backfill_extends, "the last page ends it");
+    assert!(
+        !accounts::sync_cursor(&conn, id).unwrap().backfill_extends,
+        "the last page ends it"
+    );
     accounts::extend_backfill(&conn, id).unwrap();
     accounts::start_generation(&conn, id, "s2").unwrap();
-    assert!(!accounts::sync_cursor(&conn, id).unwrap().backfill_extends, "a new generation fetches everything");
+    assert!(
+        !accounts::sync_cursor(&conn, id).unwrap().backfill_extends,
+        "a new generation fetches everything"
+    );
 }
 
 #[test]
@@ -243,10 +249,8 @@ fn a_gmail_account_is_never_taken_over_by_an_imap_one() {
 #[test]
 fn adding_an_imap_address_again_keeps_one_account_under_the_new_name() {
     let conn = open_in_memory().unwrap();
-    let first = accounts::insert_imap_account(&conn, "me@example.org", "example.org", 1)
-        .unwrap();
-    let again = accounts::insert_imap_account(&conn, "me@example.org", "Fastmail", 2)
-        .unwrap();
+    let first = accounts::insert_imap_account(&conn, "me@example.org", "example.org", 1).unwrap();
+    let again = accounts::insert_imap_account(&conn, "me@example.org", "Fastmail", 2).unwrap();
     assert_eq!(first, again);
     let all = accounts::list_accounts(&conn).unwrap();
     assert_eq!(all.len(), 1);
@@ -267,8 +271,17 @@ fn a_microsoft_account_keeps_its_provider_and_name() {
         accounts::insert_microsoft_account(&conn, "dana@outlook.com", "Microsoft 365", 5).unwrap(),
         Some(id)
     );
-    assert_eq!(accounts::account(&conn, id).unwrap().unwrap().provider_name(), "Microsoft 365");
+    assert_eq!(
+        accounts::account(&conn, id)
+            .unwrap()
+            .unwrap()
+            .provider_name(),
+        "Microsoft 365"
+    );
     // Another provider's address is left alone.
     accounts::insert_account(&conn, "dana@gmail.com", 0).unwrap();
-    assert_eq!(accounts::insert_microsoft_account(&conn, "dana@gmail.com", "Outlook", 0).unwrap(), None);
+    assert_eq!(
+        accounts::insert_microsoft_account(&conn, "dana@gmail.com", "Outlook", 0).unwrap(),
+        None
+    );
 }

@@ -34,8 +34,14 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Provider; 6] =
-        [Provider::Gmail, Provider::Imap, Provider::Microsoft, Provider::Pop3, Provider::Jmap, Provider::CalDav];
+    pub const ALL: [Provider; 6] = [
+        Provider::Gmail,
+        Provider::Imap,
+        Provider::Microsoft,
+        Provider::Pop3,
+        Provider::Jmap,
+        Provider::CalDav,
+    ];
 
     /// The stored form, in `accounts.provider`.
     pub fn as_str(self) -> &'static str {
@@ -284,7 +290,11 @@ impl Memberships {
     /// Sorts each list and drops repeats, so two lists of the same
     /// memberships compare equal whatever order they arrived in.
     pub fn sort(&mut self) {
-        for list in [&mut self.mailboxes, &mut self.keywords, &mut self.categories] {
+        for list in [
+            &mut self.mailboxes,
+            &mut self.keywords,
+            &mut self.categories,
+        ] {
             list.sort();
             list.dedup();
         }
@@ -362,18 +372,29 @@ mod tests {
         assert_eq!(Provider::CalDav.as_str(), "caldav");
         assert_eq!("caldav".parse::<Provider>().unwrap(), Provider::CalDav);
         assert_eq!(Provider::CalDav.name(), "CalDAV");
-        let without_mail: Vec<Provider> = Provider::ALL.into_iter().filter(|p| !p.serves_mail()).collect();
+        let without_mail: Vec<Provider> = Provider::ALL
+            .into_iter()
+            .filter(|p| !p.serves_mail())
+            .collect();
         assert_eq!(without_mail, [Provider::CalDav]);
     }
 
     #[test]
     fn the_removal_setting_round_trips_through_its_two_columns() {
-        for setting in [RemoveSetting::Never, RemoveSetting::Downloaded, RemoveSetting::Days(14)] {
+        for setting in [
+            RemoveSetting::Never,
+            RemoveSetting::Downloaded,
+            RemoveSetting::Days(14),
+        ] {
             let (mode, days) = setting.columns();
             assert_eq!(RemoveSetting::from_columns(mode, days), Some(setting));
         }
         assert_eq!(RemoveSetting::Days(14).columns(), ("days", Some(14)));
-        assert_eq!(RemoveSetting::from_columns("days", None), None, "days with no count");
+        assert_eq!(
+            RemoveSetting::from_columns("days", None),
+            None,
+            "days with no count"
+        );
         assert_eq!(RemoveSetting::from_columns("days", Some(0)), None);
         assert_eq!(RemoveSetting::from_columns("sometimes", None), None);
         assert_eq!(RemoveSetting::default(), RemoveSetting::Never);
@@ -461,7 +482,10 @@ mod tests {
 
     #[test]
     fn a_mail_set_names_flagged_and_muted_by_keyword() {
-        assert_eq!(MailSet::flagged(), MailSet::Keyword(keyword::FLAGGED.into()));
+        assert_eq!(
+            MailSet::flagged(),
+            MailSet::Keyword(keyword::FLAGGED.into())
+        );
         assert_eq!(MailSet::muted(), MailSet::Keyword(keyword::MUTED.into()));
     }
 }

@@ -562,6 +562,24 @@ impl<A: Accounts> Tools<A> {
         }
     }
 
+    /// Runs a mail call for one account, naming its provider on throttling.
+    async fn call_for<T: Send + 'static>(
+        &self,
+        account_id: AccountId,
+        task: impl Future<Output = Result<T, SyncError>> + Send + 'static,
+    ) -> Result<T, String> {
+        self.away(task).await?.map_err(|err| {
+            let provider = self
+                .desk
+                .accounts()
+                .into_iter()
+                .find(|account| account.id == account_id)
+                .map(|account| mailrs_discover::resolved_provider_name(account.provider_name()))
+                .unwrap_or_default();
+            err.for_person(&provider)
+        })
+    }
+
     /// Runs a read query on the store's reader pool.
     async fn read<T, F>(&self, query: F) -> Result<T, String>
     where
@@ -727,7 +745,9 @@ impl<A: Accounts> Tools<A> {
                     "The {service} is switched off in the Google Cloud project Penguin Mail signs in with, so Google refuses the call. The user was shown where to turn it on ({enable_url}); try again once they have."
                 ))
             }
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(err.for_person(&mailrs_discover::resolved_provider_name(
+                account.provider_name(),
+            ))),
         }
     }
 

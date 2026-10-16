@@ -323,10 +323,12 @@ fn always_allowed(app: &Rc<App>) -> adw::PreferencesGroup {
 
 /// One connection under Connections, holding the rows that set it up.
 fn connection_row(connection: AiProvider, subtitle: &str) -> adw::ExpanderRow {
-    crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(connection.label())
-        .subtitle(glib::markup_escape_text(subtitle))
-        .build())
+    crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(connection.label())
+            .subtitle(glib::markup_escape_text(subtitle))
+            .build(),
+    )
 }
 
 /// The Test row inside a connection. It asks the model the assistant would
@@ -423,11 +425,13 @@ fn feature_row(app: &Rc<App>, ai: &AiSettings, feature: Feature, typed: &Typed) 
     let current = ai.use_for(feature);
     let labels: Vec<String> = choices.iter().map(Use::label).collect();
     let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
-    let expander = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(feature.label())
-        .subtitle(feature.description())
-        .expanded(true)
-        .build());
+    let expander = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(feature.label())
+            .subtitle(feature.description())
+            .expanded(true)
+            .build(),
+    );
     expander.add_css_class("preference-explanation");
     let connection = adw::ComboRow::builder()
         .title(gettext("Connection"))

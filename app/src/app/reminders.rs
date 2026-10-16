@@ -46,10 +46,17 @@ impl App {
             let read = this
                 .core
                 .read(move |c| {
-                    let ids: Vec<AccountId> =
-                        accounts::list_accounts(c)?.into_iter().map(|a| a.id).collect();
-                    let occurrences =
-                        calendar::occurrences(c, &ids, now - LOOK_BACK, now + LOOK_AHEAD, CalendarScope::Shown)?;
+                    let ids: Vec<AccountId> = accounts::list_accounts(c)?
+                        .into_iter()
+                        .map(|a| a.id)
+                        .collect();
+                    let occurrences = calendar::occurrences(
+                        c,
+                        &ids,
+                        now - LOOK_BACK,
+                        now + LOOK_AHEAD,
+                        CalendarScope::Shown,
+                    )?;
                     let mut calendars: HashMap<(AccountId, String), Calendar> = HashMap::new();
                     for &id in &ids {
                         for held in calendar::calendars(c, id)? {
@@ -75,7 +82,11 @@ impl App {
                     // Pruning runs on every check, whether or not
                     // anything is newly due, so a row past its keep time
                     // never lingers through a quiet stretch.
-                    if let Err(err) = this.core.write(move |c| shown_log::mark_shown(c, &done, now)).await {
+                    if let Err(err) = this
+                        .core
+                        .write(move |c| shown_log::mark_shown(c, &done, now))
+                        .await
+                    {
                         tracing::warn!(error = %err, "could not record the event reminders shown");
                     }
                     plan.next
@@ -166,7 +177,9 @@ impl App {
             else {
                 return;
             };
-            if let Err(err) = gio::AppInfo::launch_default_for_uri(&link, None::<&gio::AppLaunchContext>) {
+            if let Err(err) =
+                gio::AppInfo::launch_default_for_uri(&link, None::<&gio::AppLaunchContext>)
+            {
                 tracing::warn!(error = %err, "could not open the call");
             }
         });

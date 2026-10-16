@@ -814,8 +814,10 @@ impl App {
         *self.accounts.borrow_mut() = loaded.iter().map(|(a, _)| a.clone()).collect();
         // A calendar account has no inbox for the tray and the Dock to count.
         let with_mail = mailrs_domain::mail_accounts(&self.accounts.borrow());
-        self.unread.set_accounts(with_mail.iter().map(|a| a.id).collect());
-        self.storage.set_accounts(loaded.iter().map(|(a, _)| a.id).collect());
+        self.unread
+            .set_accounts(with_mail.iter().map(|a| a.id).collect());
+        self.storage
+            .set_accounts(loaded.iter().map(|(a, _)| a.id).collect());
         self.accounts_read.set(true);
         *self.labels.borrow_mut() = loaded.iter().map(|(a, l)| (a.id, l.clone())).collect();
         *self.consent.borrow_mut() = consent;

@@ -31,12 +31,17 @@ pub(crate) mod checks {
             }
             let mut child = widget.first_child();
             while let Some(widget) = child {
-                if let Some(image) = find(&widget) { return Some(image); }
+                if let Some(image) = find(&widget) {
+                    return Some(image);
+                }
                 child = widget.next_sibling();
             }
             None
         }
         let arrow = find(row.upcast_ref()).expect("native disclosure image");
-        assert_eq!(arrow.icon_name().as_deref(), Some("penguin-mail-chevron-up-symbolic"));
+        assert_eq!(
+            arrow.icon_name().as_deref(),
+            Some("penguin-mail-chevron-up-symbolic")
+        );
     }
 }

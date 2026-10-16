@@ -16,14 +16,15 @@ use mailrs_domain::{EpochMillis, Filter, MailSet, RemoteMailbox, Role, Vacation}
 use mailrs_gmail::{ConnectionsPage, ContactFields, LabelColor, Person};
 use mailrs_mime::Parts;
 
-use super::clients::{AnyDav, AnyGmail, AnyGraph, AnyImap, AnyJmap, AnyPop3, AnySieve, AnySmtp};
 use super::beside::RulesBeside;
+use super::clients::{AnyDav, AnyGmail, AnyGraph, AnyImap, AnyJmap, AnyPop3, AnySieve, AnySmtp};
 use super::local::LocalRules;
 use super::{
-    AutoReplyService, Backfill, CalDav, CalendarService, CardDav, Changes, ContactsService, Found, Google,
-    Claimed, Held, IdentityService, Imap, Jmap, JmapSieve, KeywordsPage, Look, MailBackend, MailCapabilities, Microsoft, NoMail, Pop3, RawMessage, ReceiptOut, Refused,
-    Relocated, RemoteRef, RulesPlace, RulesService, SearchQuery, SendAsAddress, Settled, SieveRules, Storage, SyncState, Unapplied,
-    Unheld, Want, Withheld,
+    AutoReplyService, Backfill, CalDav, CalendarService, CardDav, Changes, Claimed,
+    ContactsService, Found, Google, Held, IdentityService, Imap, Jmap, JmapSieve, KeywordsPage,
+    Look, MailBackend, MailCapabilities, Microsoft, NoMail, Pop3, RawMessage, ReceiptOut, Refused,
+    Relocated, RemoteRef, RulesPlace, RulesService, SearchQuery, SendAsAddress, Settled,
+    SieveRules, Storage, SyncState, Unapplied, Unheld, Want, Withheld,
 };
 use crate::api::{DraftRef, SavedDraft};
 use crate::{BackendError, MailOp};
@@ -355,11 +356,21 @@ impl MailBackend for AnyMail {
         forward_all!(AnyMail, self, hold_of_copy(email_id))
     }
 
-    async fn unschedule(&self, handle: &str, message_id: &str, send_at: EpochMillis) -> Result<Unheld, BackendError> {
+    async fn unschedule(
+        &self,
+        handle: &str,
+        message_id: &str,
+        send_at: EpochMillis,
+    ) -> Result<Unheld, BackendError> {
         forward_all!(AnyMail, self, unschedule(handle, message_id, send_at))
     }
 
-    async fn settle(&self, handle: &str, message_id: &str, send_at: EpochMillis) -> Result<Settled, BackendError> {
+    async fn settle(
+        &self,
+        handle: &str,
+        message_id: &str,
+        send_at: EpochMillis,
+    ) -> Result<Settled, BackendError> {
         forward_all!(AnyMail, self, settle(handle, message_id, send_at))
     }
 
@@ -470,7 +481,11 @@ impl CalendarService for AnyCalendar {
         page: Option<&str>,
         from: EpochMillis,
     ) -> Result<model::EventPage, BackendError> {
-        forward_dav!(AnyCalendar, self, event_changes(calendar, token, page, from))
+        forward_dav!(
+            AnyCalendar,
+            self,
+            event_changes(calendar, token, page, from)
+        )
     }
 
     async fn event_range(
@@ -536,7 +551,11 @@ impl CalendarService for AnyCalendar {
         answer: Answer,
         note: Option<&str>,
     ) -> Result<model::Event, BackendError> {
-        forward_dav!(AnyCalendar, self, answer_event(calendar, id, me, answer, note))
+        forward_dav!(
+            AnyCalendar,
+            self,
+            answer_event(calendar, id, me, answer, note)
+        )
     }
 
     async fn edit_list(

@@ -156,7 +156,10 @@ impl EventPopover {
     /// it survives every reload; `show` repositions it at whichever
     /// block was pressed. `fallback` takes the focus when the popover
     /// closes after its block has gone.
-    pub fn new(parent: &impl IsA<gtk::Widget>, fallback: &impl IsA<gtk::Widget>) -> Rc<EventPopover> {
+    pub fn new(
+        parent: &impl IsA<gtk::Widget>,
+        fallback: &impl IsA<gtk::Widget>,
+    ) -> Rc<EventPopover> {
         let bar = gtk::Box::builder()
             .css_classes(["popover-bar"])
             .width_request(4)
@@ -276,10 +279,7 @@ impl EventPopover {
             .build();
         crate::ui::name(&notes_more, &gettext("Show more of the notes"));
 
-        let people_label = gtk::Label::builder()
-            .xalign(0.0)
-            .wrap(true)
-            .build();
+        let people_label = gtk::Label::builder().xalign(0.0).wrap(true).build();
         let people_row = icon_row("penguin-mail-people-symbolic", &people_label);
         // Each row carries its own answer icon, level with the people
         // row's own, so the list needs no extra indent of its own.
@@ -343,7 +343,11 @@ impl EventPopover {
             .max_length(500)
             .css_classes(["popover-note"])
             .build();
-        crate::ui::describe(&note, &gettext("Note with your answer"), &gettext("The organizer reads it with your answer"));
+        crate::ui::describe(
+            &note,
+            &gettext("Note with your answer"),
+            &gettext("The organizer reads it with your answer"),
+        );
 
         let propose_label = gtk::Label::builder()
             .xalign(0.0)
@@ -352,7 +356,11 @@ impl EventPopover {
             .label(gettext("Propose New Time"))
             .build();
         let propose_row = gtk::Button::builder()
-            .child(&row_with_icon("penguin-mail-calendar-symbolic", &propose_label, false))
+            .child(&row_with_icon(
+                "penguin-mail-calendar-symbolic",
+                &propose_label,
+                false,
+            ))
             .css_classes(["flat", "popover-open-mail"])
             .visible(false)
             .build();
@@ -512,7 +520,8 @@ impl EventPopover {
         let weak = Rc::downgrade(&this);
         this.notes_more.connect_clicked(move |button| {
             let Some(this) = weak.upgrade() else { return };
-            this.notes_label.set_markup(&words::notes_markup(&this.notes.borrow()));
+            this.notes_label
+                .set_markup(&words::notes_markup(&this.notes.borrow()));
             // A hidden button that keeps the focus leaves the popover deaf
             // to Escape, so the notes take it: a link in them when there is
             // one, or else the scroller around them.
@@ -596,7 +605,9 @@ impl EventPopover {
         // sits on the root only while the popover shows. A popover stays
         // realized once closed, and a gesture kept until unrealize went on
         // claiming every press off an event, the Mail switch's too.
-        let outside = gtk::GestureClick::builder().propagation_phase(gtk::PropagationPhase::Capture).build();
+        let outside = gtk::GestureClick::builder()
+            .propagation_phase(gtk::PropagationPhase::Capture)
+            .build();
         let weak = Rc::downgrade(&this);
         outside.connect_pressed(move |gesture, _, x, y| {
             let Some(this) = weak.upgrade() else { return };
@@ -606,7 +617,8 @@ impl EventPopover {
             // Picking the press's point in the window would find whatever
             // lies under the popover instead, such as a label in the grid.
             let pressed_on = gesture.current_event().and_then(|event| event.surface());
-            let inside = pressed_on.is_some_and(|surface| this.popover.surface().as_ref() == Some(&surface));
+            let inside =
+                pressed_on.is_some_and(|surface| this.popover.surface().as_ref() == Some(&surface));
             if inside {
                 return;
             }
@@ -614,7 +626,9 @@ impl EventPopover {
             // it would reach. Claiming it here, in the capture phase,
             // keeps it and its release from every widget below. The
             // calendar's views are the popover's parent.
-            let picked = gesture.widget().and_then(|root| root.pick(x, y, gtk::PickFlags::DEFAULT));
+            let picked = gesture
+                .widget()
+                .and_then(|root| root.pick(x, y, gtk::PickFlags::DEFAULT));
             let views = this.popover.parent();
             let pressed = match (picked, views) {
                 (Some(picked), _) if picked.ancestor(BlockButton::static_type()).is_some() => {
@@ -682,7 +696,10 @@ impl EventPopover {
     /// and has no note to write.
     /// `on_propose`, when given, puts "Propose New Time" under the
     /// answers.
-    #[expect(clippy::too_many_arguments, reason = "each is a separate door the popover opens")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate door the popover opens"
+    )]
     pub fn show(
         self: &Rc<Self>,
         anchor: &gtk::Widget,
@@ -714,20 +731,27 @@ impl EventPopover {
         if !event.all_day
             && let Some(own_zone) = words::own_zone_words(o.start, zone, draft::local_zone())
         {
-            when = fill(&gettext("{when}, {zone}"), &[("when", &when), ("zone", &own_zone)]);
+            when = fill(
+                &gettext("{when}, {zone}"),
+                &[("when", &when), ("zone", &own_zone)],
+            );
         }
         self.when.set_label(&when);
         let repeats = words::series_words(&event.rules, o.start, zone);
         self.repeat_label.set_visible(repeats.is_some());
-        self.repeat_label.set_label(repeats.as_deref().unwrap_or_default());
+        self.repeat_label
+            .set_label(repeats.as_deref().unwrap_or_default());
         self.calendar_label.set_label(&calendar.name);
         let kind = kinds::popover_words(&event.kind);
         self.kind_label.set_visible(kind.is_some());
-        self.kind_label.set_label(kind.as_deref().unwrap_or_default());
+        self.kind_label
+            .set_label(kind.as_deref().unwrap_or_default());
 
         self.edit_button.set_visible(on_edit.is_some());
         self.delete_button.set_visible(on_delete.is_some());
-        let removal = on_delete.as_ref().map_or(draft::Removal::Event, |(removal, _)| *removal);
+        let removal = on_delete
+            .as_ref()
+            .map_or(draft::Removal::Event, |(removal, _)| *removal);
         let delete_words = match removal {
             draft::Removal::Event => gettext("Delete"),
             draft::Removal::OwnCopy => gettext("Remove from My Calendar"),
@@ -754,7 +778,8 @@ impl EventPopover {
         self.guests_box.set_focusable(false);
         let overflows = notes_visible && words::notes_need_more(&notes);
         if notes_visible {
-            self.notes_label.set_markup(&words::notes_markup(&words::notes_collapsed(&notes)));
+            self.notes_label
+                .set_markup(&words::notes_markup(&words::notes_collapsed(&notes)));
         }
         self.notes.replace(notes);
         self.notes_more.set_visible(overflows);
@@ -869,7 +894,11 @@ impl EventPopover {
             // The button reads "Show all"; a screen reader also hears how
             // many are still hidden, in the same words the tooltip used
             // to give before this list replaced it.
-            crate::ui::describe(&self.guests_more, &gettext("Show all guests"), &words::more_guests_words(more));
+            crate::ui::describe(
+                &self.guests_more,
+                &gettext("Show all guests"),
+                &words::more_guests_words(more),
+            );
         }
     }
 
@@ -1009,21 +1038,51 @@ pub(crate) mod checks {
         window.set_child(Some(&parent));
         window.present();
         let popover = EventPopover::new(&parent, &parent);
-        let me = mailrs_domain::calendar::Guest { email: "me@example.org".into(), me: true, ..Default::default() };
+        let me = mailrs_domain::calendar::Guest {
+            email: "me@example.org".into(),
+            me: true,
+            ..Default::default()
+        };
         let invited = Occurrence {
             account_id: 1,
-            event: Arc::new(Event { guests: vec![me], ..Event::default() }),
+            event: Arc::new(Event {
+                guests: vec![me],
+                ..Event::default()
+            }),
             start: 0,
             end: 3_600_000,
         };
-        let mine = Occurrence { account_id: 1, event: Arc::new(Event::default()), start: 0, end: 3_600_000 };
+        let mine = Occurrence {
+            account_id: 1,
+            event: Arc::new(Event::default()),
+            start: 0,
+            end: 3_600_000,
+        };
         let show = |o: &Occurrence, hears| {
-            popover.show(anchor.upcast_ref(), o, &Calendar::default(), hears, |_, _| {}, None, None, None);
+            popover.show(
+                anchor.upcast_ref(),
+                o,
+                &Calendar::default(),
+                hears,
+                |_, _| {},
+                None,
+                None,
+                None,
+            );
             popover.unheard.is_visible()
         };
-        assert!(!show(&invited, true), "an account that can tell the organizer says nothing more");
-        assert!(show(&invited, false), "a guest is told the answer goes no further");
-        assert!(!show(&mine, false), "an event with no answer to give has nothing to say");
+        assert!(
+            !show(&invited, true),
+            "an account that can tell the organizer says nothing more"
+        );
+        assert!(
+            show(&invited, false),
+            "a guest is told the answer goes no further"
+        );
+        assert!(
+            !show(&mine, false),
+            "an event with no answer to give has nothing to say"
+        );
         popover.popover.popdown();
         window.destroy();
     }
@@ -1040,15 +1099,37 @@ pub(crate) mod checks {
         window.set_child(Some(&parent));
         window.present();
         let popover = EventPopover::new(&parent, &parent);
-        let o = Occurrence { account_id: 1, event: Arc::new(Event::default()), start: 0, end: 3_600_000 };
+        let o = Occurrence {
+            account_id: 1,
+            event: Arc::new(Event::default()),
+            start: 0,
+            end: 3_600_000,
+        };
         let watching = || window.observe_controllers().n_items();
         let before = watching();
 
-        popover.show(anchor.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
-        assert_eq!(watching(), before + 1, "nothing watches for a press outside the open popover");
+        popover.show(
+            anchor.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
+        assert_eq!(
+            watching(),
+            before + 1,
+            "nothing watches for a press outside the open popover"
+        );
 
         popover.popover.popdown();
-        assert_eq!(watching(), before, "the closed popover still claims the window's presses");
+        assert_eq!(
+            watching(),
+            before,
+            "the closed popover still claims the window's presses"
+        );
         window.destroy();
     }
 
@@ -1058,27 +1139,66 @@ pub(crate) mod checks {
     fn the_block_keeps_its_tooltip_off_the_popover() {
         let window = gtk::Window::new();
         let parent = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let anchor = gtk::Button::builder().tooltip_text("Design review, 11:00 to 12:00").build();
-        let other = gtk::Button::builder().tooltip_text("Dentist, 10:00 to 10:45").build();
+        let anchor = gtk::Button::builder()
+            .tooltip_text("Design review, 11:00 to 12:00")
+            .build();
+        let other = gtk::Button::builder()
+            .tooltip_text("Dentist, 10:00 to 10:45")
+            .build();
         parent.append(&anchor);
         parent.append(&other);
         window.set_child(Some(&parent));
         window.present();
         let popover = EventPopover::new(&parent, &parent);
-        let event = Event { title: "Design review".to_string(), ..Event::default() };
-        let o = Occurrence { account_id: 1, event: Arc::new(event), start: 0, end: 3_600_000 };
+        let event = Event {
+            title: "Design review".to_string(),
+            ..Event::default()
+        };
+        let o = Occurrence {
+            account_id: 1,
+            event: Arc::new(event),
+            start: 0,
+            end: 3_600_000,
+        };
 
-        popover.show(anchor.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
-        assert!(!anchor.has_tooltip(), "the block's tooltip can still cover its popover");
+        popover.show(
+            anchor.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
+        assert!(
+            !anchor.has_tooltip(),
+            "the block's tooltip can still cover its popover"
+        );
 
         // A press on another event moves the popover there.
-        popover.show(other.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
-        assert!(anchor.has_tooltip(), "the first block lost its tooltip for good");
+        popover.show(
+            other.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
+        assert!(
+            anchor.has_tooltip(),
+            "the first block lost its tooltip for good"
+        );
         assert!(!other.has_tooltip());
 
         popover.popover.popdown();
         assert!(other.has_tooltip(), "the block lost its tooltip for good");
-        assert_eq!(anchor.tooltip_text().as_deref(), Some("Design review, 11:00 to 12:00"));
+        assert_eq!(
+            anchor.tooltip_text().as_deref(),
+            Some("Design review, 11:00 to 12:00")
+        );
         window.destroy();
     }
 
@@ -1098,14 +1218,34 @@ pub(crate) mod checks {
             description: "Dial in by phone: +351 21 000 0000\n".repeat(200),
             ..Event::default()
         };
-        let o = Occurrence { account_id: 1, event: Arc::new(event), start: 0, end: 3_600_000 };
-        popover.show(anchor.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
-        assert!(popover.notes_more.get_visible(), "notes this long should offer Show more");
+        let o = Occurrence {
+            account_id: 1,
+            event: Arc::new(event),
+            start: 0,
+            end: 3_600_000,
+        };
+        popover.show(
+            anchor.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
+        assert!(
+            popover.notes_more.get_visible(),
+            "notes this long should offer Show more"
+        );
 
         popover.notes_more.emit_clicked();
 
         let (needed, _, _, _) = popover.popover.measure(gtk::Orientation::Vertical, -1);
-        assert!(needed < 600, "the popover needs {needed} px with the notes shown whole");
+        assert!(
+            needed < 600,
+            "the popover needs {needed} px with the notes shown whole"
+        );
         window.destroy();
     }
 
@@ -1123,18 +1263,45 @@ pub(crate) mod checks {
             description: "One\nTwo\nThree\nFour\nFive\nSix".to_string(),
             ..Event::default()
         };
-        let o = Occurrence { account_id: 1, event: Arc::new(event), start: 0, end: 3_600_000 };
-        popover.show(anchor.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
+        let o = Occurrence {
+            account_id: 1,
+            event: Arc::new(event),
+            start: 0,
+            end: 3_600_000,
+        };
+        popover.show(
+            anchor.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
         popover.popover.set_visible(true);
         let more = popover.notes_more.clone().upcast::<gtk::Widget>();
-        assert!(more.grab_focus(), "Show more should take the focus to begin with");
-        assert_eq!(gtk::prelude::GtkWindowExt::focus(&window).as_ref(), Some(&more));
+        assert!(
+            more.grab_focus(),
+            "Show more should take the focus to begin with"
+        );
+        assert_eq!(
+            gtk::prelude::GtkWindowExt::focus(&window).as_ref(),
+            Some(&more)
+        );
 
         popover.notes_more.emit_clicked();
 
         let focus = gtk::prelude::GtkWindowExt::focus(&window);
-        assert_ne!(focus.as_ref(), Some(&more), "the hidden Show more kept the focus");
-        assert!(focus.is_some_and(|w| w.get_visible()), "the focus went nowhere");
+        assert_ne!(
+            focus.as_ref(),
+            Some(&more),
+            "the hidden Show more kept the focus"
+        );
+        assert!(
+            focus.is_some_and(|w| w.get_visible()),
+            "the focus went nowhere"
+        );
         window.destroy();
     }
 
@@ -1147,19 +1314,49 @@ pub(crate) mod checks {
         parent.append(&anchor);
         window.set_child(Some(&parent));
         let popover = EventPopover::new(&parent, &parent);
-        let guests = (0..7).map(|n| super::tests::guest(&format!("{n}@example.com"))).collect();
-        let event = Event { title: "All hands".to_string(), guests, ..Event::default() };
-        let o = Occurrence { account_id: 1, event: Arc::new(event), start: 0, end: 3_600_000 };
-        popover.show(anchor.upcast_ref(), &o, &Calendar::default(), true, |_, _| {}, None, None, None);
+        let guests = (0..7)
+            .map(|n| super::tests::guest(&format!("{n}@example.com")))
+            .collect();
+        let event = Event {
+            title: "All hands".to_string(),
+            guests,
+            ..Event::default()
+        };
+        let o = Occurrence {
+            account_id: 1,
+            event: Arc::new(event),
+            start: 0,
+            end: 3_600_000,
+        };
+        popover.show(
+            anchor.upcast_ref(),
+            &o,
+            &Calendar::default(),
+            true,
+            |_, _| {},
+            None,
+            None,
+            None,
+        );
         popover.popover.set_visible(true);
         let more = popover.guests_more.clone().upcast::<gtk::Widget>();
-        assert!(more.grab_focus(), "Show all should take the focus to begin with");
+        assert!(
+            more.grab_focus(),
+            "Show all should take the focus to begin with"
+        );
 
         popover.guests_more.emit_clicked();
 
         let focus = gtk::prelude::GtkWindowExt::focus(&window);
-        assert_ne!(focus.as_ref(), Some(&more), "the hidden Show all kept the focus");
-        assert!(focus.is_some_and(|w| w.get_visible()), "the focus went nowhere");
+        assert_ne!(
+            focus.as_ref(),
+            Some(&more),
+            "the hidden Show all kept the focus"
+        );
+        assert!(
+            focus.is_some_and(|w| w.get_visible()),
+            "the focus went nowhere"
+        );
         window.destroy();
     }
 }
@@ -1169,7 +1366,10 @@ mod tests {
     use super::*;
 
     pub(super) fn guest(email: &str) -> Guest {
-        Guest { email: email.to_string(), ..Guest::default() }
+        Guest {
+            email: email.to_string(),
+            ..Guest::default()
+        }
     }
 
     #[test]

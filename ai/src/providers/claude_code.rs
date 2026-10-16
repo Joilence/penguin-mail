@@ -554,7 +554,11 @@ fn final_result(message: &Value) -> Result<String, String> {
 /// did not answer. The CLI prints "2.1.278 (Claude Code)".
 async fn version_output(command: &Path) -> Result<String, AiError> {
     let mut run = Command::new(command);
-    run.arg("--version").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    run.arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     let child = spawn_when_free(&mut run)
         .await
         .map_err(|e| AiError::Other(format!("could not run {}: {e}", command.display())))?;

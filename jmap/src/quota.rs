@@ -5,7 +5,7 @@
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{JmapClient, JmapError, Request, Session, MAIL};
+use crate::{JmapClient, JmapError, MAIL, Request, Session};
 
 pub const QUOTA: &str = "urn:ietf:params:jmap:quota";
 
@@ -46,9 +46,15 @@ pub fn mail_storage(quotas: &[Quota]) -> Option<&Quota> {
 impl Session {
     /// The mail account whose quota capability applies, even without a quota primary.
     pub fn mail_quota_account(&self) -> Option<&str> {
-        if !self.capabilities.contains_key(QUOTA) { return None; }
+        if !self.capabilities.contains_key(QUOTA) {
+            return None;
+        }
         let id = self.account_for(MAIL)?;
-        self.accounts.get(id)?.account_capabilities.contains_key(QUOTA).then_some(id)
+        self.accounts
+            .get(id)?
+            .account_capabilities
+            .contains_key(QUOTA)
+            .then_some(id)
     }
 }
 
@@ -62,7 +68,11 @@ impl JmapClient {
             .to_string();
         let mut request = Request::new();
         request.also_using(MAIL);
-        let got = request.call(QUOTA, "Quota/get", json!({ "accountId": account, "ids": null }));
+        let got = request.call(
+            QUOTA,
+            "Quota/get",
+            json!({ "accountId": account, "ids": null }),
+        );
         let mut answer = self.send(&request).await?;
         Ok(answer.take::<Listing>(&got, "Quota/get")?.list)
     }

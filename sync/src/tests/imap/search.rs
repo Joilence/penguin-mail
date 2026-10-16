@@ -33,9 +33,7 @@ async fn search_hits_open_under_their_local_threads() {
         );
         h.imap.deliver_flagged(
             "Archive",
-            &message(
-                "reply", "Re: Kites", "References: <parent@example.com>\r\n",
-            ),
+            &message("reply", "Re: Kites", "References: <parent@example.com>\r\n"),
             &["\\Seen"],
             days_ago(400),
         );
@@ -48,7 +46,8 @@ async fn search_hits_open_under_their_local_threads() {
         h.bootstrap().await;
         assert_eq!(h.ids().await.len(), usize::from(cached_parent));
 
-        let searched = h.sync
+        let searched = h
+            .sync
             .search_listing(&SearchQuery::Native("subject:kites".into()), 10)
             .await
             .unwrap();
@@ -63,10 +62,10 @@ async fn search_hits_open_under_their_local_threads() {
             for row in rows {
                 h.sync.open_thread(&row.id).await.unwrap();
                 let account_id = h.account_id;
-                let stored = h.db
-                    .read(move |c| messages::thread_messages(c, account_id, &row.id))
-                    .await
-                    .unwrap();
+                let stored =
+                    h.db.read(move |c| messages::thread_messages(c, account_id, &row.id))
+                        .await
+                        .unwrap();
                 if row.subject == "Kites receipt" {
                     assert_eq!(stored.len(), 1);
                 } else {
@@ -250,7 +249,12 @@ async fn a_typed_search_the_server_cannot_run_lists_from_this_computer_and_says_
     };
 
     let listing = lists
-        .list(&search, &Scope::of_mail_accounts(&signed_in), &view, Loaded::nothing())
+        .list(
+            &search,
+            &Scope::of_mail_accounts(&signed_in),
+            &view,
+            Loaded::nothing(),
+        )
         .await
         .unwrap();
 

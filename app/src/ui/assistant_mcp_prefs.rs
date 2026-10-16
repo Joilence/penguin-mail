@@ -23,9 +23,11 @@ const REFRESH: Duration = Duration::from_secs(2);
 /// The group, with an Add Server button and a row per saved server.
 pub fn group(app: &Rc<App>, dialog: &adw::ToastOverlay) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    let section = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(gettext("MCP Servers"))
-        .build());
+    let section = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(gettext("MCP Servers"))
+            .build(),
+    );
     group.add(&section);
     section.add_row(
         &adw::ActionRow::builder()

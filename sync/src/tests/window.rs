@@ -92,18 +92,31 @@ async fn a_longer_window_brings_the_older_mail_and_fetches_nothing_already_here(
 async fn new_mail_arrives_while_older_mail_is_still_loading() {
     let h = gmail().await;
     for n in 0..6 {
-        h.fake.seed(meta(&format!("old{n}"), &format!("t-old{n}"), days_ago(500 + n), &[]));
+        h.fake.seed(meta(
+            &format!("old{n}"),
+            &format!("t-old{n}"),
+            days_ago(500 + n),
+            &[],
+        ));
     }
     load(&h.sync_for(30), &h.db).await;
     let longer = h.sync_for(ALL_MAIL);
     longer.follow_window().await.unwrap();
     assert!(longer.backfill_step().await.unwrap(), "pages remain");
 
-    h.fake.deliver(meta("new", "t-new", now_millis(), &["INBOX", "UNREAD"]));
+    h.fake
+        .deliver(meta("new", "t-new", now_millis(), &["INBOX", "UNREAD"]));
     longer.incremental().await.unwrap();
 
-    assert!(h.threads(MailSet::Role(Role::Inbox)).await.contains(&"t-new".to_string()));
-    assert!(!h.cursor().await.backfill_done, "the older mail is still on its way");
+    assert!(
+        h.threads(MailSet::Role(Role::Inbox))
+            .await
+            .contains(&"t-new".to_string())
+    );
+    assert!(
+        !h.cursor().await.backfill_done,
+        "the older mail is still on its way"
+    );
     while longer.backfill_step().await.unwrap() {}
     assert!(h.all_threads().await.contains(&"t-old5".to_string()));
 }
@@ -171,7 +184,9 @@ fn imap_sync(h: &ImapHarness, days: i64) -> AccountSync {
 
 async fn imap_account() -> ImapHarness {
     let imap = FakeImap::new();
-    let raw = |id: &str| format!("Subject: {id}\r\nMessage-ID: <{id}@example.com>\r\n\r\nHi.\r\n").into_bytes();
+    let raw = |id: &str| {
+        format!("Subject: {id}\r\nMessage-ID: <{id}@example.com>\r\n\r\nHi.\r\n").into_bytes()
+    };
     imap.deliver("INBOX", raw("a"), now_millis());
     imap.deliver("Archive", raw("b"), days_ago(400));
     imap.deliver("Archive", raw("c"), days_ago(3000));
@@ -203,28 +218,53 @@ async fn imap_a_longer_window_brings_older_mail_under_new_ids_alone() {
 
     let after = h.ids().await;
     assert_eq!(after.len(), 3);
-    assert!(before.iter().all(|id| after.contains(id)), "the inbox kept its ids");
+    assert!(
+        before.iter().all(|id| after.contains(id)),
+        "the inbox kept its ids"
+    );
 }
 
 // ---- Microsoft ----------------------------------------------------------------
 
-fn outlook_sync(fake: &Arc<FakeGraph>, db: &mailrs_store::Db, account_id: i64, days: i64) -> AccountSync {
+fn outlook_sync(
+    fake: &Arc<FakeGraph>,
+    db: &mailrs_store::Db,
+    account_id: i64,
+    days: i64,
+) -> AccountSync {
     let settings = MicrosoftSettings {
         address: "me@outlook.com".into(),
         provider_name: "Outlook".into(),
         window_days: days,
     };
     let (sender, _) = async_channel::unbounded();
-    AccountSync::new(account_id, AccountServices::microsoft(Arc::clone(fake), settings), db.clone(), sender)
-        .with_limits(days, DEFAULT_BODY_CACHE_BYTES)
+    AccountSync::new(
+        account_id,
+        AccountServices::microsoft(Arc::clone(fake), settings),
+        db.clone(),
+        sender,
+    )
+    .with_limits(days, DEFAULT_BODY_CACHE_BYTES)
 }
 
 #[tokio::test]
 async fn microsoft_all_mail_reaches_mail_of_any_age() {
     let h = outlook().await;
     let archive = h.fake.folder_id("archive");
-    let old = h.fake.deliver(&archive, FakeMail { at: days_ago(3000), ..FakeMail::default() });
-    let new = h.fake.deliver("inbox", FakeMail { at: now_millis(), ..FakeMail::default() });
+    let old = h.fake.deliver(
+        &archive,
+        FakeMail {
+            at: days_ago(3000),
+            ..FakeMail::default()
+        },
+    );
+    let new = h.fake.deliver(
+        "inbox",
+        FakeMail {
+            at: now_millis(),
+            ..FakeMail::default()
+        },
+    );
     load(&outlook_sync(&h.fake, &h.db, h.account_id, ALL_MAIL), &h.db).await;
     assert!(h.stored(&old).await && h.stored(&new).await);
 }
@@ -233,7 +273,13 @@ async fn microsoft_all_mail_reaches_mail_of_any_age() {
 async fn microsoft_a_longer_window_brings_older_mail_and_follows_its_changes() {
     let h = outlook().await;
     let archive = h.fake.folder_id("archive");
-    let old = h.fake.deliver(&archive, FakeMail { at: days_ago(400), ..FakeMail::default() });
+    let old = h.fake.deliver(
+        &archive,
+        FakeMail {
+            at: days_ago(400),
+            ..FakeMail::default()
+        },
+    );
     load(&outlook_sync(&h.fake, &h.db, h.account_id, 30), &h.db).await;
     assert!(!h.stored(&old).await);
 
@@ -261,11 +307,20 @@ async fn microsoft_mail_arriving_as_the_window_changes_is_not_lost() {
 
     let longer = outlook_sync(&h.fake, &h.db, h.account_id, 730);
     let inbox = h.fake.folder_id("inbox");
-    let gap = FakeMail { at: now_millis(), subject: "In the gap", ..FakeMail::default() };
+    let gap = FakeMail {
+        at: now_millis(),
+        subject: "In the gap",
+        ..FakeMail::default()
+    };
     h.fake.with(|s| s.deliver_after_delta = Some((inbox, gap)));
     longer.incremental().await.unwrap();
     longer.incremental().await.unwrap();
-    let id = h.fake.with(|s| s.messages.iter().find(|(_, m)| m.message.subject.as_deref() == Some("In the gap")).map(|(id, _)| id.clone()));
+    let id = h.fake.with(|s| {
+        s.messages
+            .iter()
+            .find(|(_, m)| m.message.subject.as_deref() == Some("In the gap"))
+            .map(|(id, _)| id.clone())
+    });
     assert!(h.stored(&id.expect("the fake delivered it")).await);
 }
 
@@ -277,7 +332,12 @@ async fn microsoft_mail_arriving_as_the_window_changes_is_not_lost() {
 async fn a_pop3_account_keeps_old_mail_under_any_window() {
     let h = pop3_harness(FakePop3::default(), RemoveSetting::Never).await;
     let old = h
-        .keep("u1", b"Subject: Old\r\n\r\nHi.\r\n", "archive", days_ago(3000))
+        .keep(
+            "u1",
+            b"Subject: Old\r\n\r\nHi.\r\n",
+            "archive",
+            days_ago(3000),
+        )
         .await;
     let short = h.again().with_limits(14, DEFAULT_BODY_CACHE_BYTES);
     let account_id = h.account_id;
@@ -306,9 +366,11 @@ async fn all_mail_peak(count: usize) -> (usize, usize) {
     let h = harness().await;
     for n in 0..count {
         let date = days_ago(400 + (n as i64 % 3000));
-        h.fake.seed(meta(&format!("m{n}"), &format!("t{n}"), date, &[]));
+        h.fake
+            .seed(meta(&format!("m{n}"), &format!("t{n}"), date, &[]));
     }
-    h.fake.with(|s| s.page_size = crate::services::LIST_PAGE_SIZE as usize);
+    h.fake
+        .with(|s| s.page_size = crate::services::LIST_PAGE_SIZE as usize);
     let sync = h.sync_for(ALL_MAIL);
     sync.bootstrap().await.unwrap();
     h.drain();
@@ -318,11 +380,10 @@ async fn all_mail_peak(count: usize) -> (usize, usize) {
         h.drain();
     }
     let peak = mark.peak();
-    let stored: i64 = h
-        .db
-        .read(|c| Ok(c.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?))
-        .await
-        .unwrap();
+    let stored: i64 =
+        h.db.read(|c| Ok(c.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?))
+            .await
+            .unwrap();
     assert_eq!(stored, count as i64);
     let mark = ProcessMark::start();
     let page = h.fake.list_messages("", Some("100"), 100).await.unwrap();
@@ -346,8 +407,17 @@ async fn a_long_backfill_holds_about_one_page_whatever_the_mailbox_size() {
         "all mail: 5,000 messages peaked at {small} bytes ({small_fake} of them the fake's listing), \
          20,000 at {large} bytes ({large_fake} the fake's)"
     );
-    let (small, large) = (small.saturating_sub(small_fake), large.saturating_sub(large_fake));
+    let (small, large) = (
+        small.saturating_sub(small_fake),
+        large.saturating_sub(large_fake),
+    );
     eprintln!("the client's own: {small} bytes for 5,000, {large} for 20,000");
-    assert!(large < small * 3 / 2 + (64 << 10), "20,000 messages held {large} bytes against {small} for 5,000");
-    assert!(large < 2 << 20, "a page at a time should stay under 2 MB, held {large}");
+    assert!(
+        large < small * 3 / 2 + (64 << 10),
+        "20,000 messages held {large} bytes against {small} for 5,000"
+    );
+    assert!(
+        large < 2 << 20,
+        "a page at a time should stay under 2 MB, held {large}"
+    );
 }

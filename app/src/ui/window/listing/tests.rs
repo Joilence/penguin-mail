@@ -66,14 +66,21 @@ async fn a_reveal_selects_after_the_first_page_lands() {
     run.change(show(trash()));
     fake.settle().await;
     run.reveal((1, "t1".into(), Reveal::Read));
-    assert_eq!(fake.calls(Call::Select), 0, "the inbox's rows are not there yet");
+    assert_eq!(
+        fake.calls(Call::Select),
+        0,
+        "the inbox's rows are not there yet"
+    );
     fake.settle().await;
     assert_eq!(run.mailbox(), inbox());
     let calls = fake.with(|s| s.calls.clone());
     let last_rows = calls.iter().rposition(|c| *c == Call::SetRows).unwrap();
     let select = calls.iter().position(|c| *c == Call::Select).unwrap();
     assert!(last_rows < select, "selected after the rows landed");
-    assert_eq!(fake.with(|s| s.selected.clone()), [(1, "t1".into(), Reveal::Read)]);
+    assert_eq!(
+        fake.with(|s| s.selected.clone()),
+        [(1, "t1".into(), Reveal::Read)]
+    );
 }
 
 #[tokio::test]

@@ -414,13 +414,18 @@ impl<A: Accounts> Tools<A> {
             None => {
                 let settings = self.desk.settings();
                 let accounts = mailrs_domain::mail_accounts(&self.desk.accounts());
-                let emails: Vec<_> = accounts.iter().map(|account| account.email.as_str()).collect();
-                let preferred = settings.preferred_live_account(task, &emails).and_then(|email| {
-                    accounts
-                        .iter()
-                        .find(|account| account.email.eq_ignore_ascii_case(email))
-                        .cloned()
-                });
+                let emails: Vec<_> = accounts
+                    .iter()
+                    .map(|account| account.email.as_str())
+                    .collect();
+                let preferred = settings
+                    .preferred_live_account(task, &emails)
+                    .and_then(|email| {
+                        accounts
+                            .iter()
+                            .find(|account| account.email.eq_ignore_ascii_case(email))
+                            .cloned()
+                    });
                 match preferred
                     .or_else(|| reply_account.clone())
                     .or_else(|| forward_account.clone())
@@ -562,7 +567,9 @@ impl<A: Accounts> Tools<A> {
         message_id: &str,
     ) -> Result<MessageBody, String> {
         let (s, id) = (Arc::clone(sync), message_id.to_string());
-        let body = self.call(async move { s.body(&id).await }).await?;
+        let body = self
+            .call_for(sync.account_id(), async move { s.body(&id).await })
+            .await?;
         if ciphertext(&body) {
             return Err("That message arrived encrypted, and the assistant does not send it on. The user can forward it, or save its files, from the conversation.".into());
         }
@@ -583,9 +590,11 @@ impl<A: Accounts> Tools<A> {
             )
         })?;
         let (s, id) = (Arc::clone(sync), message_id.to_string());
-        self.call(async move { s.attachment(&id, &handle).await })
-            .await
-            .map_err(|err| format!("Could not fetch {}: {err}", found.filename))
+        self.call_for(sync.account_id(), async move {
+            s.attachment(&id, &handle).await
+        })
+        .await
+        .map_err(|err| format!("Could not fetch {}: {err}", found.filename))
     }
 
     /// The files `attachments` names: those out of messages fetched now,
@@ -811,13 +820,15 @@ impl<A: Accounts> Tools<A> {
                 .await?;
             let (s, id) = (Arc::clone(&sync), message_id.clone());
             let draft_id = self
-                .call(async move { s.draft_id_for(&id).await })
+                .call_for(account.id, async move { s.draft_id_for(&id).await })
                 .await?
                 .ok_or("Gmail no longer holds that draft.")?;
             // Only the message as Gmail holds it carries the Bcc, the reply
             // headers and the bytes of the files, readable or encrypted.
             let (s, id) = (Arc::clone(&sync), message_id.clone());
-            let raw = self.call(async move { s.raw_message(&id).await }).await?;
+            let raw = self
+                .call_for(account.id, async move { s.raw_message(&id).await })
+                .await?;
             let blank = self.effects.new_draft(account.id)?;
             let mut draft = self
                 .effects
@@ -932,7 +943,10 @@ impl<A: Accounts> Tools<A> {
         let question = discard_question(&subject_of(&stored.subject), account.provider_name());
         Ok(Plan::ask(question, async move {
             let gone = self
-                .call(async move { sync.discard_draft(&message_id).await })
+                .call_for(
+                    account.id,
+                    async move { sync.discard_draft(&message_id).await },
+                )
                 .await?;
             if !gone {
                 return Err("Gmail no longer holds that draft.".into());

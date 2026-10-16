@@ -57,8 +57,7 @@ impl ListPane {
 
 impl Pane for ListPane {
     fn scope(&self) -> Scope {
-        self.window()
-            .map_or_else(Scope::default, |win| win.scope())
+        self.window().map_or_else(Scope::default, |win| win.scope())
     }
 
     fn view(&self, mailbox: &Mailbox, category: Category) -> View {
@@ -119,7 +118,8 @@ impl Pane for ListPane {
 
     fn drop_rows(&self, gone: &[Target]) {
         let Some(win) = self.window() else { return };
-        win.list.retain(|row| !gone.contains(&Target::from_row(row)));
+        win.list
+            .retain(|row| !gone.contains(&Target::from_row(row)));
         if win.conversation.read(|o| o.among(gone)) == Some(true) {
             win.conversation.clear();
         }
@@ -148,7 +148,13 @@ impl Pane for ListPane {
 pub(super) struct CoreLists(pub(super) Rc<Core>);
 
 impl Lists for CoreLists {
-    fn list(&self, mailbox: Mailbox, scope: Scope, view: View, held: Loaded) -> Answer<'_, anyhow::Result<Listing>> {
+    fn list(
+        &self,
+        mailbox: Mailbox,
+        scope: Scope,
+        view: View,
+        held: Loaded,
+    ) -> Answer<'_, anyhow::Result<Listing>> {
         let lists = self.0.lists();
         Box::pin(
             self.0
@@ -185,7 +191,12 @@ impl Lists for CoreLists {
         }))
     }
 
-    fn changed(&self, mailbox: Mailbox, named: Vec<Named>, view: View) -> Answer<'_, Option<Changed>> {
+    fn changed(
+        &self,
+        mailbox: Mailbox,
+        named: Vec<Named>,
+        view: View,
+    ) -> Answer<'_, Option<Changed>> {
         let lists = self.0.lists();
         let call = self
             .0

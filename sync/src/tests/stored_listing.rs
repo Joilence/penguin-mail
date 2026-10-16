@@ -37,8 +37,11 @@ async fn an_imap_folder_lists_from_the_store_without_a_server_search() {
     h.imap
         .deliver("INBOX", raw_message("hello", "Hello", now, None), now);
     let earlier = now - 60_000;
-    h.imap
-        .deliver("Archive", raw_message("budget", "Budget", earlier, None), earlier);
+    h.imap.deliver(
+        "Archive",
+        raw_message("budget", "Budget", earlier, None),
+        earlier,
+    );
 
     h.bootstrap().await;
     // Sync itself may search while it fills the window; only the listings

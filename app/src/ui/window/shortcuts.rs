@@ -589,12 +589,18 @@ pub(super) static SHORTCUTS: &[Shortcut] = &[
     Shortcut {
         section: Section::Calendar,
         description: || gettext("Change when the focused event ends"),
-        keys: &[calendar_grid("<Shift><Alt>Up"), calendar_grid("<Shift><Alt>Down")],
+        keys: &[
+            calendar_grid("<Shift><Alt>Up"),
+            calendar_grid("<Shift><Alt>Down"),
+        ],
     },
     Shortcut {
         section: Section::Calendar,
         description: || gettext("Change when the focused event starts"),
-        keys: &[calendar_grid("<Control><Shift>Up"), calendar_grid("<Control><Shift>Down")],
+        keys: &[
+            calendar_grid("<Control><Shift>Up"),
+            calendar_grid("<Control><Shift>Down"),
+        ],
     },
     Shortcut {
         section: Section::Calendar,
@@ -990,7 +996,11 @@ impl MainWindow {
         }
         // Tags… waits for mail from one account that keeps tags;
         // `word_filing` turns it on.
-        if let Some(tag) = self.actions.lookup_action("tag").and_downcast::<gio::SimpleAction>() {
+        if let Some(tag) = self
+            .actions
+            .lookup_action("tag")
+            .and_downcast::<gio::SimpleAction>()
+        {
             tag.set_enabled(false);
         }
         let view = Rc::clone(&self.conversation);
@@ -1168,7 +1178,11 @@ mod tests {
             // F5 and Ctrl+R both refresh the calendar, on purpose, each
             // its own shown key.
             if command != CalendarKey::Refresh {
-                assert!(!answered.contains(&format!("{command:?}")), "{} repeats {command:?}", key.trigger);
+                assert!(
+                    !answered.contains(&format!("{command:?}")),
+                    "{} repeats {command:?}",
+                    key.trigger
+                );
             }
             answered.push(format!("{command:?}"));
         }
@@ -1179,7 +1193,11 @@ mod tests {
             let command = crate::ui::calendar::drag::grid_key(pressed, modifiers)
                 .unwrap_or_else(|| panic!("nothing answers {}", key.trigger));
             let command = format!("{command:?}");
-            assert!(!answered.contains(&command), "{} repeats {command}", key.trigger);
+            assert!(
+                !answered.contains(&command),
+                "{} repeats {command}",
+                key.trigger
+            );
             answered.push(command);
         }
         assert_eq!(answered.len(), 22);
@@ -1187,9 +1205,18 @@ mod tests {
 
     #[test]
     fn a_calendar_letter_ignores_alt_and_control() {
-        assert_eq!(calendar_key(gdk::Key::t, gdk::ModifierType::empty()), Some(CalendarKey::Today));
-        assert_eq!(calendar_key(gdk::Key::t, gdk::ModifierType::CONTROL_MASK), None);
-        assert_eq!(calendar_key(gdk::Key::_1, gdk::ModifierType::ALT_MASK), None);
+        assert_eq!(
+            calendar_key(gdk::Key::t, gdk::ModifierType::empty()),
+            Some(CalendarKey::Today)
+        );
+        assert_eq!(
+            calendar_key(gdk::Key::t, gdk::ModifierType::CONTROL_MASK),
+            None
+        );
+        assert_eq!(
+            calendar_key(gdk::Key::_1, gdk::ModifierType::ALT_MASK),
+            None
+        );
         assert_eq!(calendar_key(gdk::Key::e, gdk::ModifierType::empty()), None);
     }
 
@@ -1198,7 +1225,16 @@ mod tests {
         for (name, _) in VIEW_ACTIONS {
             assert_eq!(route(Space::Mail, name), Route::Run, "{name}");
         }
-        for name in ["archive", "trash", "reply", "toggle-read", "print", "flag-color", "label", "tag"] {
+        for name in [
+            "archive",
+            "trash",
+            "reply",
+            "toggle-read",
+            "print",
+            "flag-color",
+            "label",
+            "tag",
+        ] {
             assert_eq!(route(Space::Calendar, name), Route::Skip, "{name}");
         }
     }
@@ -1220,7 +1256,13 @@ mod tests {
 
     #[test]
     fn window_actions_run_in_either_space() {
-        for name in ["compose", "preferences", "assistant", "go-mailbox", "show-mail"] {
+        for name in [
+            "compose",
+            "preferences",
+            "assistant",
+            "go-mailbox",
+            "show-mail",
+        ] {
             assert_eq!(route(Space::Calendar, name), Route::Run, "{name}");
         }
     }

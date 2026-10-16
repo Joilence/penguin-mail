@@ -1026,7 +1026,9 @@ pub fn in_muted_threads(
     )?;
     let mut muted = Vec::new();
     for id in ids {
-        let thread: Option<String> = stmt.query_row(params![account_id, id], |row| row.get(0)).optional()?;
+        let thread: Option<String> = stmt
+            .query_row(params![account_id, id], |row| row.get(0))
+            .optional()?;
         if let Some(thread) = thread {
             muted.push((id.clone(), thread));
         }
@@ -1537,7 +1539,9 @@ mod walk_tests {
             ThreadFilter::everything().with_flag(FlagColor::Red),
             ThreadFilter::unified(set("INBOX")).from_senders(sender()),
             ThreadFilter::everything().from_senders(sender()),
-            ThreadFilter::everything().in_account(a).from_senders(sender()),
+            ThreadFilter::everything()
+                .in_account(a)
+                .from_senders(sender()),
             ThreadFilter::unified(set("INBOX")).with_threads(vec![
                 "t3".into(),
                 "t10".into(),

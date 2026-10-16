@@ -3,9 +3,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use mailrs_domain::{
-    AccountState, ChangeEvent, EpochMillis, Location, MailSet, MessageMeta, Role,
-};
+use mailrs_domain::{AccountState, ChangeEvent, EpochMillis, Location, MailSet, MessageMeta, Role};
 use mailrs_store::messages::Change;
 use mailrs_store::{accounts, mailboxes, messages, window};
 
@@ -73,7 +71,12 @@ impl AccountSync {
         let local = self.mail.capabilities().local_mailboxes;
         let (stored, cursor) = self
             .db
-            .read(move |c| Ok((accounts::window_days(c, account_id)?, accounts::sync_cursor(c, account_id)?)))
+            .read(move |c| {
+                Ok((
+                    accounts::window_days(c, account_id)?,
+                    accounts::sync_cursor(c, account_id)?,
+                ))
+            })
             .await?;
         if let Some(before) = stored
             && window_reach(before) != window_reach(now)
@@ -86,7 +89,10 @@ impl AccountSync {
             // A backfill still on its way pages again too: a page token
             // belongs to the listing of the old window.
             if window_longer(now, before) || !cursor.backfill_done {
-                tracing::info!(account = account_id, "the window changed; listing it again for the mail it now reaches");
+                tracing::info!(
+                    account = account_id,
+                    "the window changed; listing it again for the mail it now reaches"
+                );
                 self.db
                     .write(move |c| accounts::extend_backfill(c, account_id))
                     .await?;
@@ -309,8 +315,13 @@ impl AccountSync {
         if !self.renames() || !self.mail.follow(mailbox) {
             return Ok(());
         }
-        let listed = self.mail.window_ids(self.window_days, Some(mailbox)).await?;
-        let fetched = self.fetch(listed.into_iter().map(Want::from).collect()).await?;
+        let listed = self
+            .mail
+            .window_ids(self.window_days, Some(mailbox))
+            .await?;
+        let fetched = self
+            .fetch(listed.into_iter().map(Want::from).collect())
+            .await?;
         let account_id = self.account_id;
         let touched = self
             .db
@@ -500,7 +511,10 @@ impl AccountSync {
             .write(move |c| {
                 let kept: Vec<Change> = held
                     .into_iter()
-                    .map(|message_id| Change::Keep { message_id, generation })
+                    .map(|message_id| Change::Keep {
+                        message_id,
+                        generation,
+                    })
                     .collect();
                 messages::apply(c, account_id, &kept)?;
                 let mut touched = store_fetched(

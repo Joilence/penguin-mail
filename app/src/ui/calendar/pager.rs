@@ -16,7 +16,11 @@ use gtk::{gdk, glib};
 /// once the removal has played out, after the caller's own guard has
 /// ended, and the calendar reads a late page change at either end as a
 /// swipe to that range.
-pub(super) fn show_views(carousel: &adw::Carousel, holders: Vec<adw::Bin>, views: [gtk::Widget; 3]) -> Vec<adw::Bin> {
+pub(super) fn show_views(
+    carousel: &adw::Carousel,
+    holders: Vec<adw::Bin>,
+    views: [gtk::Widget; 3],
+) -> Vec<adw::Bin> {
     let holders = match holders.len() {
         3 => holders,
         _ => {
@@ -161,7 +165,11 @@ pub(crate) mod checks {
         let holders = show_views(&carousel, Vec::new(), labels("week"));
 
         stack.set_visible_child_name("calendar");
-        assert_eq!(carousel.width(), 0, "the check needs a carousel that is not laid out yet");
+        assert_eq!(
+            carousel.width(),
+            0,
+            "the check needs a carousel that is not laid out yet"
+        );
         let sent = Rc::new(Cell::new(0));
         let laid_out = LaidOut::default();
         let send_to = |carousel: &adw::Carousel, page: &adw::Bin| {
@@ -174,7 +182,11 @@ pub(crate) mod checks {
         // Mapped, unmapped and mapped again before a frame.
         send_to(&carousel, &holders[2]);
         send_to(&carousel, &holders[1]);
-        assert_eq!(sent.get(), 0, "a carousel with no width was sent to a page it cannot hold");
+        assert_eq!(
+            sent.get(),
+            0,
+            "a carousel with no width was sent to a page it cannot hold"
+        );
         spin(Duration::from_millis(500));
 
         assert!(carousel.width() > 0);
@@ -190,7 +202,11 @@ pub(crate) mod checks {
         let other_holders = show_views(&other, Vec::new(), labels("day"));
         stack.add_named(&other, Some("other"));
         stack.set_visible_child_name("other");
-        assert_eq!(other.width(), 0, "the check needs a carousel that is not laid out yet");
+        assert_eq!(
+            other.width(),
+            0,
+            "the check needs a carousel that is not laid out yet"
+        );
         send_to(&other, &other_holders[1]);
         laid_out.stop();
         spin(Duration::from_millis(300));
@@ -204,7 +220,10 @@ pub(crate) mod checks {
     /// scrolled to the bounds the block had so far, at the top of the
     /// day, so the week sprang back to 00:00.
     fn focus_on_a_new_block_leaves_the_hours_where_they_were() {
-        let hours = gtk::Fixed::builder().height_request(2000).width_request(300).build();
+        let hours = gtk::Fixed::builder()
+            .height_request(2000)
+            .width_request(300)
+            .build();
         let scroller = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .child(&hours)
@@ -220,7 +239,11 @@ pub(crate) mod checks {
         spin(Duration::from_millis(300));
         scroller.vadjustment().set_value(900.0);
         spin(Duration::from_millis(300));
-        assert_eq!(scroller.vadjustment().value(), 900.0, "the hours start where the check put them");
+        assert_eq!(
+            scroller.vadjustment().value(),
+            900.0,
+            "the hours start where the check put them"
+        );
 
         // The refill puts a new block where the old one was, and the focus
         // goes to it.
@@ -236,7 +259,11 @@ pub(crate) mod checks {
         });
         spin(Duration::from_millis(600));
 
-        assert_eq!(scroller.vadjustment().value(), 900.0, "the hours moved under the reader");
+        assert_eq!(
+            scroller.vadjustment().value(),
+            900.0,
+            "the hours moved under the reader"
+        );
         window.destroy();
     }
 
@@ -280,14 +307,22 @@ pub(crate) mod checks {
         carousel.scroll_to(&holders[1], false);
         spin(Duration::from_millis(200));
         arranging.set(false);
-        assert_eq!(carousel.position(), 1.0, "the first pages start on the middle one");
+        assert_eq!(
+            carousel.position(),
+            1.0,
+            "the first pages start on the middle one"
+        );
 
         arranging.set(true);
         let holders = show_views(&carousel, holders, labels("second"));
         arranging.set(false);
         spin(Duration::from_millis(800));
 
-        assert_eq!(*changes.borrow(), Vec::<u32>::new(), "page changes after new views");
+        assert_eq!(
+            *changes.borrow(),
+            Vec::<u32>::new(),
+            "page changes after new views"
+        );
         assert_eq!(carousel.n_pages(), 3);
         assert_eq!(carousel.position(), 1.0);
         assert!(carousel.nth_page(1) == holders[1].clone().upcast::<gtk::Widget>());
@@ -306,7 +341,10 @@ mod tests {
     #[test]
     fn a_carousel_without_a_width_holds_no_position() {
         assert!(!holds_a_position(false, 0), "not on screen");
-        assert!(!holds_a_position(false, 1032), "not on screen, whatever it last measured");
+        assert!(
+            !holds_a_position(false, 1032),
+            "not on screen, whatever it last measured"
+        );
         assert!(!holds_a_position(true, 0), "on screen and not laid out yet");
         assert!(holds_a_position(true, 1032));
     }

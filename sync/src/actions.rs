@@ -255,7 +255,8 @@ impl<A: Accounts> MailActions<A> {
     /// and at least one change, it goes on top of the undo stack, and the
     /// next undo is the one that reverses it.
     pub async fn run(&self, targets: &[Target], action: MailAction, history: History) -> Outcome {
-        self.run_from(targets, action, history, &MovedFrom::nowhere()).await
+        self.run_from(targets, action, history, &MovedFrom::nowhere())
+            .await
     }
 
     /// Runs `action` as [`Self::run`] does, on mail the person picked from
@@ -545,9 +546,9 @@ impl<A: Accounts> MailActions<A> {
             })
             .await;
         match read {
-            Ok(names) => action.describe_named(|id| {
-                names.get(id).cloned().unwrap_or_else(|| id.to_string())
-            }),
+            Ok(names) => {
+                action.describe_named(|id| names.get(id).cloned().unwrap_or_else(|| id.to_string()))
+            }
             Err(err) => {
                 tracing::warn!(error = %err, "could not read mailbox names for Undo");
                 action.describe()
@@ -562,7 +563,9 @@ impl<A: Accounts> MailActions<A> {
     /// archive cannot pull a conversation back out of the trash.
     pub async fn undo(&self) -> Option<Undone> {
         let undo = self.lock().pop_back()?;
-        let words = self.words_for(&undo.action, accounts_in(&undo.relabel)).await;
+        let words = self
+            .words_for(&undo.action, accounts_in(&undo.relabel))
+            .await;
         let mut outcome = Outcome::default();
         let mut reversing = Vec::new();
         let mut left_alone = Vec::new();
@@ -771,11 +774,7 @@ impl<A: Accounts> MailActions<A> {
                         .iter()
                         .filter(|m| target.message_id.as_ref().is_none_or(|id| &m.id == id))
                         .collect();
-                    folders.push(
-                        PLACES
-                            .into_iter()
-                            .find(|f| mine.iter().any(|m| f.holds(m))),
-                    );
+                    folders.push(PLACES.into_iter().find(|f| mine.iter().any(|m| f.holds(m))));
                 }
                 Ok(folders)
             })

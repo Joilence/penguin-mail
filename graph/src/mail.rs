@@ -404,7 +404,10 @@ impl Graph {
                     filters.push(format!("internetMessageId eq '{}'", id.replace('\'', "''")));
                 }
                 if let Some(name) = &listing.category {
-                    filters.push(format!("categories/any(c:c eq '{}')", name.replace('\'', "''")));
+                    filters.push(format!(
+                        "categories/any(c:c eq '{}')",
+                        name.replace('\'', "''")
+                    ));
                 }
                 if !filters.is_empty() {
                     query.push(("$filter", filters.join(" and ")));

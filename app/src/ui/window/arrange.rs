@@ -9,9 +9,9 @@ use mailrs_domain::{Account, AccountId, Label};
 
 use super::MainWindow;
 use crate::settings::{Change, Settings};
-use crate::ui::{Mailbox, Standard};
 use crate::ui::confirm::{Tone, confirm};
 use crate::ui::sidebar::Extras;
+use crate::ui::{Mailbox, Standard};
 use mailrs_domain::translate::{fill, gettext};
 
 impl MainWindow {

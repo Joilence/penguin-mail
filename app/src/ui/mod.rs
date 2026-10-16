@@ -3,8 +3,6 @@
 
 pub mod about;
 pub mod add_account;
-pub mod post_band;
-pub mod tile_grid;
 pub mod assistant;
 pub mod assistant_mcp_prefs;
 pub mod assistant_prefs;
@@ -14,30 +12,32 @@ pub mod autocomplete;
 pub mod calendar;
 pub mod card_place;
 pub mod combo_value;
-pub mod copied;
 pub mod composer;
 pub mod confirm;
 pub mod contact_card;
-pub mod dav_edit;
-pub mod disclosure;
 pub mod contacts_prefs;
 pub mod conversation;
+pub mod copied;
+pub mod dav_edit;
+pub mod disclosure;
 pub mod find;
 pub mod hide_my_email;
 pub mod ics_file;
 pub mod invitation;
 pub mod key_import;
+pub mod link_preview;
 pub mod list_feed;
 pub mod moving;
 pub mod narrow_header;
 pub mod permission;
 pub mod pgp;
+pub mod post_band;
 pub mod preferences;
-pub mod sender_prefs;
 pub mod queued;
 pub mod roving;
 pub mod rules;
 pub mod search_suggest;
+pub mod sender_prefs;
 pub mod sidebar;
 pub mod smart_editor;
 pub mod switch_jmap;
@@ -45,6 +45,7 @@ pub mod templates;
 pub mod texture;
 pub mod thread_list;
 pub mod thread_row;
+pub mod tile_grid;
 pub mod toolbar;
 pub mod translation;
 pub mod unsubscribe;
@@ -59,8 +60,8 @@ use std::rc::Rc;
 use adw::prelude::ComboRowExt;
 use gtk::prelude::*;
 use gtk::{gio, glib};
-use mailrs_domain::translate::gettext;
 use mailrs_domain::Folder;
+use mailrs_domain::translate::gettext;
 pub use mailrs_sync::Mailbox;
 pub use mailrs_sync::mailbox::Standard;
 use mailrs_sync::mailbox::{folder_icon, folder_name};
@@ -130,7 +131,10 @@ pub fn page_column(card: &impl IsA<gtk::Widget>, class: &str) -> adw::Breakpoint
     bin.add_css_class(class);
     if let Ok(condition) = adw::BreakpointCondition::parse(&format!("max-width: {PAGE_NARROW}px")) {
         let narrow = adw::Breakpoint::new(condition);
-        narrow.add_setters(&[(&clamp, "margin-start", PAGE_NARROW_SIDE), (&clamp, "margin-end", PAGE_NARROW_SIDE)]);
+        narrow.add_setters(&[
+            (&clamp, "margin-start", PAGE_NARROW_SIDE),
+            (&clamp, "margin-end", PAGE_NARROW_SIDE),
+        ]);
         bin.add_breakpoint(narrow);
     }
     bin
@@ -467,7 +471,10 @@ pub fn label_color_name(index: usize) -> String {
 /// each time it opens, such as Go to Date. It leaves `parent` once it
 /// closes, or every use would leave one more popover on the widget for
 /// the life of the window.
-pub fn passing_popover(parent: &impl IsA<gtk::Widget>, child: &impl IsA<gtk::Widget>) -> gtk::Popover {
+pub fn passing_popover(
+    parent: &impl IsA<gtk::Widget>,
+    child: &impl IsA<gtk::Widget>,
+) -> gtk::Popover {
     let popover = gtk::Popover::builder().child(child).autohide(true).build();
     popover.set_parent(parent);
     // `closed` runs while GTK is still hiding the popover, so it leaves
@@ -500,7 +507,10 @@ pub(crate) mod checks {
         spin(Duration::from_millis(200));
         popover.popdown();
         spin(Duration::from_millis(200));
-        assert!(popover.parent().is_none(), "the closed popover stayed on the button");
+        assert!(
+            popover.parent().is_none(),
+            "the closed popover stayed on the button"
+        );
         window.destroy();
     }
 

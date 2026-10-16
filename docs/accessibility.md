@@ -39,6 +39,8 @@ and then the name it builds is the one a reader hears.
 
 ## The message
 
+Hovering over a web or email link, or focusing it with Tab, shows its destination at the bottom-right of the reading pane. The preview is a status region for screen readers. It names the destination site before the full address and explains any signs of deception. A message with such links also has a warning above its body, outside the sender's styles. These local checks compare displayed addresses with destinations and look for disguised hosts and hidden characters. They make no network requests and do not certify that a site is safe.
+
 `app/src/render.rs` writes the page the WebView shows, so the message
 gets HTML accessibility: the subject is the page's only `h1` and each
 sender is a heading under it, the details panel is a real `<details>`,

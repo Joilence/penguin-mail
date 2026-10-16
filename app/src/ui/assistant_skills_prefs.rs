@@ -14,7 +14,8 @@ use mailrs_domain::translate::{fill, fill_plural, gettext};
 
 pub fn group(app: &Rc<App>) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
-    let section = crate::ui::disclosure::row(adw::ExpanderRow::builder().title(gettext("Skills")).build());
+    let section =
+        crate::ui::disclosure::row(adw::ExpanderRow::builder().title(gettext("Skills")).build());
     group.add(&section);
     section.add_row(
         &adw::ActionRow::builder()
@@ -127,11 +128,13 @@ fn skill_row(app: &Rc<App>, skill: &Skill) -> gtk::Widget {
         return row.upcast();
     }
     // A skill with scripts opens to its second switch.
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(title)
-        .subtitle(subtitle(skill))
-        .subtitle_lines(3)
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(title)
+            .subtitle(subtitle(skill))
+            .subtitle_lines(3)
+            .build(),
+    );
     let on = gtk::Switch::builder()
         .active(settings.enabled)
         .valign(gtk::Align::Center)

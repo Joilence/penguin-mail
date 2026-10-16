@@ -23,8 +23,8 @@ pub use api::{ImapApi, Submit};
 pub(crate) use outgoing::{envelope_of, submit_over, without_bcc};
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::ops::RangeInclusive;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use mailrs_domain::mailbox::keyword;
@@ -36,7 +36,8 @@ use tokio::time::Instant;
 
 use super::{
     Backfill, Changes, Found, IdentityService, KeywordsPage, MailBackend, MailCapabilities,
-    RawMessage, Relocated, RemoteRef, SearchQuery, SendAsAddress, Storage, SyncState, Unapplied, Want,
+    RawMessage, Relocated, RemoteRef, SearchQuery, SendAsAddress, Storage, SyncState, Unapplied,
+    Want,
 };
 use crate::api::{DraftRef, SavedDraft};
 use crate::{BackendError, MailOp};
@@ -265,9 +266,10 @@ impl<I: ImapApi, S: Submit> Imap<I, S> {
     /// server store there. Every mailbox can differ, so a look or a write
     /// in one never decides for another.
     fn note_keywords(&self, mailbox: &str, selected: &Selected) {
-        self.known()
-            .keywords
-            .insert(mailbox.to_string(), keywords::stored_keywords(&selected.permanent_flags));
+        self.known().keywords.insert(
+            mailbox.to_string(),
+            keywords::stored_keywords(&selected.permanent_flags),
+        );
     }
 
     /// The keywords `mailbox`'s own PERMANENTFLAGS store, or the system
@@ -377,15 +379,20 @@ impl<I: ImapApi, S: Submit> MailBackend for Imap<I, S> {
             return Ok(HashMap::new());
         };
         listed?;
-        let folders: Vec<_> = self.known().folders.iter()
+        let folders: Vec<_> = self
+            .known()
+            .folders
+            .iter()
             .filter(|f| !f.parent_only)
             .map(|f| (f.id.clone(), f.role))
             .collect();
         let mut counts = HashMap::new();
-        let mut replies = stream::iter(folders).map(|(id, role)| async move {
-            let count = timeout(limit, self.api.unread(&id)).await;
-            (id, role, count)
-        }).buffer_unordered(2);
+        let mut replies = stream::iter(folders)
+            .map(|(id, role)| async move {
+                let count = timeout(limit, self.api.unread(&id)).await;
+                (id, role, count)
+            })
+            .buffer_unordered(2);
         while let Some((id, role, count)) = replies.next().await {
             match count {
                 Ok(Ok(count)) => {

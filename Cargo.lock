@@ -2436,6 +2436,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "objc2-web-kit",
+ "psl",
  "pulldown-cmark",
  "rand 0.10.3",
  "reqwest",

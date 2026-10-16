@@ -142,7 +142,11 @@ pub fn notices(messages: Vec<MessageMeta>, previews: bool, buttons: Vec<Button>)
     let notice = |title, body, target: Option<Target>| Notice {
         title,
         body,
-        buttons: if target.is_some() { buttons.clone() } else { Vec::new() },
+        buttons: if target.is_some() {
+            buttons.clone()
+        } else {
+            Vec::new()
+        },
         counted: match &target {
             Some(target) => vec![target.clone()],
             None => messages.iter().map(target_of).collect(),
@@ -350,7 +354,10 @@ impl Issued {
         let (token, key) = parameter.split_once('/')?;
         let (target, buttons) = self.shown.get(token)?.acts_on.as_ref()?;
         let choice = choice_of(key, buttons)?;
-        Some(Request { target: target.clone(), choice })
+        Some(Request {
+            target: target.clone(),
+            choice,
+        })
     }
 }
 
@@ -413,11 +420,17 @@ mod tests {
         issued.issue("tok1".into(), thread("t1"), vec![Button::Archive]);
         assert_eq!(
             issued.request(&parameter("tok1", Button::Archive.key())),
-            Some(Request { target: thread("t1"), choice: Choice::Button(Button::Archive) })
+            Some(Request {
+                target: thread("t1"),
+                choice: Choice::Button(Button::Archive)
+            })
         );
         assert_eq!(
             issued.request(&parameter("tok1", OPEN_KEY)),
-            Some(Request { target: thread("t1"), choice: Choice::Open })
+            Some(Request {
+                target: thread("t1"),
+                choice: Choice::Open
+            })
         );
     }
 
@@ -428,7 +441,10 @@ mod tests {
     fn only_a_token_this_copy_issued_asks_for_anything() {
         let mut issued = Issued::default();
         issued.issue("tok1".into(), thread("t1"), vec![Button::MarkRead]);
-        assert_eq!(issued.request(&parameter("guess", Button::MarkRead.key())), None);
+        assert_eq!(
+            issued.request(&parameter("guess", Button::MarkRead.key())),
+            None
+        );
         assert_eq!(
             issued.request(&parameter("tok1", Button::Delete.key())),
             None,
@@ -446,7 +462,11 @@ mod tests {
         }
         let newest = format!("tok{}", Issued::KEPT);
         let evicted = issued.issue(newest.clone(), thread("tN"), vec![]);
-        assert_eq!(evicted.as_deref(), Some("tok0"), "the caller withdraws what was evicted");
+        assert_eq!(
+            evicted.as_deref(),
+            Some("tok0"),
+            "the caller withdraws what was evicted"
+        );
         assert_eq!(issued.request(&parameter("tok0", OPEN_KEY)), None);
         assert!(issued.request(&parameter(&newest, OPEN_KEY)).is_some());
     }
@@ -514,7 +534,11 @@ mod tests {
             .map(|(token, _)| token)
             .collect();
         assert_eq!(withdrawn, ["read", "gone"]);
-        assert_eq!(issued.request(&parameter("read", OPEN_KEY)), None, "withdrawn, so forgotten");
+        assert_eq!(
+            issued.request(&parameter("read", OPEN_KEY)),
+            None,
+            "withdrawn, so forgotten"
+        );
         assert!(issued.request(&parameter("kept", OPEN_KEY)).is_some());
     }
 
@@ -526,7 +550,10 @@ mod tests {
         let mut issued = Issued::default();
         issued.issue_summary("sum".into(), vec![thread("t1"), thread("t2")]);
         assert_eq!(issued.request(&parameter("sum", OPEN_KEY)), None);
-        assert_eq!(issued.request(&parameter("sum", Button::Archive.key())), None);
+        assert_eq!(
+            issued.request(&parameter("sum", Button::Archive.key())),
+            None
+        );
     }
 
     /// A change to one thread the summary counted asks only for that
@@ -542,17 +569,40 @@ mod tests {
 
         let still_unread = still(&["t2-m"]);
         assert!(!issued.settle("sum", &settled_among(&asked[0].1, &still_unread)));
-        assert_eq!(issued.in_threads(1, &["t2".to_string()]), asked, "still waited on");
+        assert_eq!(
+            issued.in_threads(1, &["t2".to_string()]),
+            asked,
+            "still waited on"
+        );
 
         let read = still(&[]);
-        assert!(!issued.settle("sum", &settled_among(&asked[0].1, &read)), "two are left");
-        assert!(issued.in_threads(1, &["t2".to_string()]).is_empty(), "nothing is read twice");
+        assert!(
+            !issued.settle("sum", &settled_among(&asked[0].1, &read)),
+            "two are left"
+        );
+        assert!(
+            issued.in_threads(1, &["t2".to_string()]).is_empty(),
+            "nothing is read twice"
+        );
 
         let asked = issued.in_threads(1, &["t1".to_string(), "t3".to_string()]);
-        assert_eq!(asked, vec![("sum".to_string(), vec!["t1-m".to_string(), "t3-m".to_string()])]);
+        assert_eq!(
+            asked,
+            vec![(
+                "sum".to_string(),
+                vec!["t1-m".to_string(), "t3-m".to_string()]
+            )]
+        );
         let one_gone = still(&[]);
-        assert_eq!(settled_among(&asked[0].1, &one_gone), ["t1-m", "t3-m"], "mail the store dropped counts as settled");
-        assert!(issued.settle("sum", &["t1-m".to_string(), "t3-m".to_string()]), "the last one went");
+        assert_eq!(
+            settled_among(&asked[0].1, &one_gone),
+            ["t1-m", "t3-m"],
+            "mail the store dropped counts as settled"
+        );
+        assert!(
+            issued.settle("sum", &["t1-m".to_string(), "t3-m".to_string()]),
+            "the last one went"
+        );
         assert!(issued.in_threads(1, &["t1".to_string()]).is_empty());
     }
 
@@ -563,9 +613,15 @@ mod tests {
         assert_eq!(issued.pending("sum"), 2);
         assert!(!issued.settle("sum", &["t1-m".to_string()]));
         assert_eq!(issued.pending("sum"), 1);
-        assert!(!issued.settle("sum", &["never".to_string()]), "an id it never counted changes nothing");
+        assert!(
+            !issued.settle("sum", &["never".to_string()]),
+            "an id it never counted changes nothing"
+        );
         assert_eq!(issued.pending("sum"), 1);
-        assert!(!issued.settle("never", &["t2-m".to_string()]), "a token never issued is nothing to settle");
+        assert!(
+            !issued.settle("never", &["t2-m".to_string()]),
+            "a token never issued is nothing to settle"
+        );
     }
 
     #[test]
@@ -578,16 +634,32 @@ mod tests {
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].target, None);
         assert!(shown[0].buttons.is_empty());
-        let counted: Vec<_> = shown[0].counted.iter().map(|t| t.thread_id.as_str()).collect();
-        assert_eq!(counted, ["t0", "t1", "t2", "t3"], "it still knows which mail it counted");
+        let counted: Vec<_> = shown[0]
+            .counted
+            .iter()
+            .map(|t| t.thread_id.as_str())
+            .collect();
+        assert_eq!(
+            counted,
+            ["t0", "t1", "t2", "t3"],
+            "it still knows which mail it counted"
+        );
 
         let two: Vec<_> = (0..2)
             .map(|n| meta(&format!("m{n}"), &format!("t{n}"), 0, &["INBOX"]))
             .collect();
         let shown = notices(two, true, vec![Button::Archive]);
         assert_eq!(shown.len(), 2);
-        assert!(shown.iter().all(|n| n.target.is_some() && n.buttons == [Button::Archive]));
-        assert!(shown.iter().all(|n| n.counted.len() == 1 && Some(&n.counted[0]) == n.target.as_ref()));
+        assert!(
+            shown
+                .iter()
+                .all(|n| n.target.is_some() && n.buttons == [Button::Archive])
+        );
+        assert!(
+            shown
+                .iter()
+                .all(|n| n.counted.len() == 1 && Some(&n.counted[0]) == n.target.as_ref())
+        );
     }
 
     #[test]
@@ -598,7 +670,10 @@ mod tests {
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].body, "");
         assert_eq!(shown[0].buttons, [Button::Reply]);
-        assert_eq!(shown[0].target.as_ref().map(|t| t.thread_id.as_str()), Some("t1"));
+        assert_eq!(
+            shown[0].target.as_ref().map(|t| t.thread_id.as_str()),
+            Some("t1")
+        );
     }
 
     #[test]
@@ -611,7 +686,11 @@ mod tests {
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].target, None);
         assert!(shown[0].buttons.is_empty());
-        let counted: Vec<_> = shown[0].counted.iter().map(|t| t.thread_id.as_str()).collect();
+        let counted: Vec<_> = shown[0]
+            .counted
+            .iter()
+            .map(|t| t.thread_id.as_str())
+            .collect();
         assert_eq!(counted, ["t0", "t1"]);
     }
 

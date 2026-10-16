@@ -178,10 +178,11 @@ impl AccountSync {
         // second copy here would double them.
         let local = self.mail.capabilities().local_mailboxes;
         if !local && ((bytes.len() as i64) < RAW_LIMIT || self.small(message_id).await?) {
-            self.raw
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .put(self.account_id, message_id.to_string(), Arc::clone(&bytes));
+            self.raw.lock().unwrap_or_else(PoisonError::into_inner).put(
+                self.account_id,
+                message_id.to_string(),
+                Arc::clone(&bytes),
+            );
         }
         Ok(bytes)
     }
@@ -253,9 +254,15 @@ impl AccountSync {
     /// hears of it.
     pub(crate) async fn restate(&self) -> Result<(), SyncError> {
         let account_id = self.account_id;
-        let kept = self.db.read(move |c| accounts::account(c, account_id)).await?;
+        let kept = self
+            .db
+            .read(move |c| accounts::account(c, account_id))
+            .await?;
         if let Some(account) = kept {
-            self.emit(ChangeEvent::AccountStateChanged { account_id, state: account.state });
+            self.emit(ChangeEvent::AccountStateChanged {
+                account_id,
+                state: account.state,
+            });
         }
         Ok(())
     }

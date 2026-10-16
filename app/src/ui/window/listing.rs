@@ -84,8 +84,13 @@ pub(super) trait Pane {
 /// What the run asks of the store, the servers and the main loop.
 pub(super) trait Lists {
     /// A page of `mailbox`, after the rows in `held`.
-    fn list(&self, mailbox: Mailbox, scope: Scope, view: View, held: Loaded)
-    -> Answer<'_, anyhow::Result<Listing>>;
+    fn list(
+        &self,
+        mailbox: Mailbox,
+        scope: Scope,
+        view: View,
+        held: Loaded,
+    ) -> Answer<'_, anyhow::Result<Listing>>;
     /// The stored mail that matches a search.
     fn stored_search(
         &self,
@@ -104,7 +109,12 @@ pub(super) trait Lists {
     ) -> Answer<'_, anyhow::Result<Listing>>;
     /// The rows of the named threads as they are now, or nothing when the
     /// mailbox has to be listed again.
-    fn changed(&self, mailbox: Mailbox, named: Vec<Named>, view: View) -> Answer<'_, Option<Changed>>;
+    fn changed(
+        &self,
+        mailbox: Mailbox,
+        named: Vec<Named>,
+        view: View,
+    ) -> Answer<'_, Option<Changed>>;
     /// Which of `targets` left `folder`.
     fn gone_from(&self, folder: Folder, targets: Vec<Target>) -> Answer<'_, Vec<Target>>;
     /// Keeps a server mailbox of an account in step from now on.
@@ -186,7 +196,10 @@ impl ListingRun {
     /// Makes one change to the mailbox on screen and hands back what it
     /// left stale, for a caller that has to redraw other parts first. It
     /// passes the answer to [`ListingRun::carry`].
-    pub(super) fn transition(&self, change: impl FnOnce(&mut OnScreen) -> Option<Redraw>) -> Option<Redraw> {
+    pub(super) fn transition(
+        &self,
+        change: impl FnOnce(&mut OnScreen) -> Option<Redraw>,
+    ) -> Option<Redraw> {
         change(&mut self.state.borrow_mut().screen)
     }
 
@@ -262,7 +275,13 @@ impl ListingRun {
         let this = Rc::clone(self);
         self.lists.spawn(Box::pin(async move {
             let loaded = this.lists.list(mailbox, scope, view, held).await;
-            if !this.state.borrow_mut().screen.feed().next_page(ticket, &loaded) {
+            if !this
+                .state
+                .borrow_mut()
+                .screen
+                .feed()
+                .next_page(ticket, &loaded)
+            {
                 return;
             }
             match loaded {
@@ -406,7 +425,10 @@ impl ListingRun {
         let (scope, view) = self.asks(&mailbox);
         let this = Rc::clone(self);
         self.lists.spawn(Box::pin(async move {
-            let loaded = this.lists.list(mailbox, scope, view, Loaded::nothing()).await;
+            let loaded = this
+                .lists
+                .list(mailbox, scope, view, Loaded::nothing())
+                .await;
             this.land(ticket, loaded);
         }));
     }
@@ -481,7 +503,12 @@ impl ListingRun {
     /// Puts a first page on screen while `ticket` is current, and selects
     /// the thread a reveal waited on.
     fn land(&self, ticket: Ticket, loaded: anyhow::Result<Listing>) {
-        let landed = self.state.borrow_mut().screen.feed().first_page(ticket, &loaded);
+        let landed = self
+            .state
+            .borrow_mut()
+            .screen
+            .feed()
+            .first_page(ticket, &loaded);
         let Some(landed) = landed else {
             return;
         };
@@ -502,12 +529,22 @@ impl ListingRun {
         let fresh = self.lists.changed(mailbox, named.clone(), view).await;
         let mailbox = self.mailbox();
         let prunes = mailbox.folder().is_some();
-        let splice = self.state.borrow_mut().screen.feed().spliced(ticket, fresh, prunes);
+        let splice = self
+            .state
+            .borrow_mut()
+            .screen
+            .feed()
+            .spliced(ticket, fresh, prunes);
         match splice {
             Splice::Stale => {}
             Splice::Put(fresh) => {
                 let held = self.pane.loaded();
-                let rows = self.state.borrow_mut().screen.feed().place(fresh.rows, &held);
+                let rows = self
+                    .state
+                    .borrow_mut()
+                    .screen
+                    .feed()
+                    .place(fresh.rows, &held);
                 self.pane
                     .replace(&named, rows, &mailbox.title(), &fresh.subtitle);
             }
@@ -536,5 +573,8 @@ fn newly_followed(
     account_id: AccountId,
     server_mailbox: String,
 ) -> bool {
-    followed.entry(account_id).or_default().insert(server_mailbox)
+    followed
+        .entry(account_id)
+        .or_default()
+        .insert(server_mailbox)
 }

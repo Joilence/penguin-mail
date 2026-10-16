@@ -106,7 +106,10 @@ impl AccountSync {
                 for hit in found {
                     let thread_id =
                         messages::thread_id_of(c, account_id, &hit.id)?.unwrap_or(hit.thread_id);
-                    refs.push(RemoteRef { id: hit.id, thread_id });
+                    refs.push(RemoteRef {
+                        id: hit.id,
+                        thread_id,
+                    });
                 }
                 Ok(refs)
             })
@@ -179,7 +182,11 @@ impl AccountSync {
     /// The stored messages `tree` matches, newest first, at most `limit`,
     /// by store id and thread. Junk and Trash stay out unless the tree
     /// names them, as in a Gmail search.
-    async fn stored_matches(&self, tree: &Query, limit: usize) -> Result<Vec<RemoteRef>, SyncError> {
+    async fn stored_matches(
+        &self,
+        tree: &Query,
+        limit: usize,
+    ) -> Result<Vec<RemoteRef>, SyncError> {
         let (account_id, tree) = (self.account_id, tree.clone());
         let now = chrono::Local::now();
         let matched = self

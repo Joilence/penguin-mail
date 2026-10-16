@@ -52,7 +52,10 @@ impl App {
     pub fn account_for(&self, task: AccountUse, hint: Option<AccountId>) -> Option<AccountId> {
         let settings = self.settings.borrow();
         let accounts = self.accounts();
-        let emails: Vec<_> = accounts.iter().map(|account| account.email.as_str()).collect();
+        let emails: Vec<_> = accounts
+            .iter()
+            .map(|account| account.email.as_str())
+            .collect();
         let preferred = settings.preferred_live_account(task, &emails);
         choose_account(&accounts, preferred, hint)
     }
@@ -226,10 +229,25 @@ mod tests {
                 provider_name: None,
             },
         );
-        assert_eq!(choose_account(&all, None, None), Some(1), "the first account with mail");
-        assert_eq!(choose_account(&all, Some("robin@cloud.example.org"), None), Some(1));
-        assert_eq!(choose_account(&all, None, Some(9)), Some(1), "nor as the account on screen");
-        assert_eq!(choose_account(&all[..1], None, None), None, "alone, it leaves nobody to write");
+        assert_eq!(
+            choose_account(&all, None, None),
+            Some(1),
+            "the first account with mail"
+        );
+        assert_eq!(
+            choose_account(&all, Some("robin@cloud.example.org"), None),
+            Some(1)
+        );
+        assert_eq!(
+            choose_account(&all, None, Some(9)),
+            Some(1),
+            "nor as the account on screen"
+        );
+        assert_eq!(
+            choose_account(&all[..1], None, None),
+            None,
+            "alone, it leaves nobody to write"
+        );
     }
 
     #[test]

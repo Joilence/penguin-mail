@@ -406,7 +406,9 @@ impl Dialog {
                     .build();
                 result.set_title(&plain_title(row));
                 result.set_subtitle(&trail.join(" · "));
-                result.add_suffix(&gtk::Image::from_icon_name("penguin-mail-chevron-right-symbolic"));
+                result.add_suffix(&gtk::Image::from_icon_name(
+                    "penguin-mail-chevron-right-symbolic",
+                ));
                 let (weak, page, target) = (Rc::downgrade(self), page.downgrade(), row.downgrade());
                 result.connect_activated(move |_| {
                     let (Some(this), Some(page), Some(target)) =
@@ -502,7 +504,8 @@ pub(crate) mod checks {
             .name("accounts")
             .build();
         let group = adw::PreferencesGroup::new();
-        let account = crate::ui::disclosure::row(adw::ExpanderRow::builder().title("me@example.com").build());
+        let account =
+            crate::ui::disclosure::row(adw::ExpanderRow::builder().title("me@example.com").build());
         account.add_row(
             &adw::SwitchRow::builder()
                 .title("Contacts")
@@ -586,7 +589,9 @@ pub(crate) mod checks {
         let window = adw::Window::new();
         window.present();
         let (dialog, _, account) = fixture();
-        account.add_row(&crate::ui::disclosure::row(adw::ExpanderRow::builder().title("Signature").build()));
+        account.add_row(&crate::ui::disclosure::row(
+            adw::ExpanderRow::builder().title("Signature").build(),
+        ));
         dialog.present(&window);
         dialog.search.set_text("signature");
         dialog.fill_results();

@@ -13,10 +13,12 @@ use crate::compose::{SendAsAddress, Suffixes};
 use crate::settings::Change;
 
 pub fn account_row(app: &Rc<App>, account: &Account) -> adw::ExpanderRow {
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .use_markup(false)
-        .title(gettext("Addresses You Send From"))
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .use_markup(false)
+            .title(gettext("Addresses You Send From"))
+            .build(),
+    );
     let editable = matches!(account.provider, Provider::Imap | Provider::Pop3);
     let list = Rc::new(List {
         app: Rc::downgrade(app),

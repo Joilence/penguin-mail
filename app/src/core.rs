@@ -13,7 +13,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Context, Result, anyhow, bail};
 use mailrs_discover::{Found, JmapFound, Net, RealNet, Security, SrvRecord};
-use mailrs_domain::{Account, AccountId, AccountState, ChangeEvent, Provider, SignInClient, Target};
+use mailrs_domain::{
+    Account, AccountId, AccountState, ChangeEvent, Provider, SignInClient, Target,
+};
 use mailrs_pgp::{Pgp, PgpError};
 use mailrs_smime::{Smime, SmimeError};
 use mailrs_store::services::{FoundService, Miss, ServiceKind};
@@ -24,19 +26,18 @@ use mailrs_sync::passwords::{PasswordStore, Secrets};
 use mailrs_sync::services::finding;
 use mailrs_sync::sign_in::{
     Browser, BrowserReady, BrowserSignInError, JmapBrowser, NewCalDav, NewImap, NewJmap, NewPop3,
-    Wanted, caldav_signed_in, caldav_signed_in_again, check_pop3, google_sign_in, imap_signed_in, in_browser,
-    jmap_in_browser, jmap_signed_in, pop3_signed_in,
+    Wanted, caldav_signed_in, caldav_signed_in_again, check_pop3, google_sign_in, imap_signed_in,
+    in_browser, jmap_in_browser, jmap_signed_in, pop3_signed_in,
 };
 use mailrs_sync::{
-    AccountServices, AccountSettings, AccountSync, Accounts, BackendError, Clients, ContactBook,
-    Connector, Failure, History, Invitations, MailAction, MailActions, Mailboxes, MovedFrom,
+    AccountServices, AccountSettings, AccountSync, Accounts, BackendError, Clients, Connector,
+    ContactBook, Failure, History, Invitations, MailAction, MailActions, Mailboxes, MovedFrom,
     OneClick, Outbox, Outcome, SyncEngine, SyncError, Undone, connect_caldav, connect_imap,
-    connect_jmap, connect_pop3,
-    now_millis, pop3_servers_for, servers_for,
+    connect_jmap, connect_pop3, now_millis, pop3_servers_for, servers_for,
 };
 
-use crate::add_account::{Attempt, JmapAttempt};
 use crate::add_account::lookup::{Check, Heard, check_of_url};
+use crate::add_account::{Attempt, JmapAttempt};
 use crate::assistant::run::{Background, Modules};
 use crate::demo::{self, DemoMail};
 use crate::starting::{self, Connected, Starting};
@@ -263,7 +264,11 @@ impl Core {
         };
         let actions = Arc::new(MailActions::new(Arc::clone(&engine), db.clone(), one_click));
         let lists = Arc::new(Mailboxes::new(Arc::clone(&engine), db.clone()));
-        let rules = Arc::new(mailrs_sync::rules::RulesEngine::new(Arc::clone(&engine), db.clone(), Arc::clone(&actions)));
+        let rules = Arc::new(mailrs_sync::rules::RulesEngine::new(
+            Arc::clone(&engine),
+            db.clone(),
+            Arc::clone(&actions),
+        ));
         let gmail_settings = Arc::new(AccountSettings::new(Arc::clone(&engine), db.clone()));
         let photo_dir = contact_photo_dir(demo, &dir);
         if demo {
@@ -273,7 +278,11 @@ impl Core {
         let contacts = Arc::new(ContactBook::new(Arc::clone(&engine), db.clone(), photo_dir));
         let outbox = Arc::new(Outbox::new(Arc::clone(&engine), db.clone()));
         let calendar_copy = Arc::new(CalendarCopy::new(Arc::clone(&engine), db.clone()));
-        let invitations = Arc::new(Invitations::new(Arc::clone(&engine), db.clone(), Arc::clone(&calendar_copy)));
+        let invitations = Arc::new(Invitations::new(
+            Arc::clone(&engine),
+            db.clone(),
+            Arc::clone(&calendar_copy),
+        ));
         // A change still waiting on its Undo toast when the app last
         // stopped has no toast left to close over it, so this run queues
         // it before anything reads or sends the account it belongs to.
@@ -421,7 +430,9 @@ impl Core {
         });
         let db = self.db.clone();
         self.runtime.spawn(async move {
-            let Ok(all) = db.read(accounts::list_accounts).await else { return };
+            let Ok(all) = db.read(accounts::list_accounts).await else {
+                return;
+            };
             let connect = move |account: Account| {
                 let reach = Arc::clone(&reach);
                 async move { reach.connect(&account).await }
@@ -451,6 +462,39 @@ impl Core {
             Ok(result) => result.map_err(Into::into),
             Err(err) => Err(anyhow!("background task failed: {err}")),
         }
+    }
+
+    /// Runs an account's call without losing its provider when a server
+    /// asks us to wait. Keep the original error as the source for callers
+    /// that still need to inspect it.
+    pub async fn call_for<T, E, F>(&self, account_id: AccountId, future: F) -> Result<T>
+    where
+        F: Future<Output = std::result::Result<T, E>> + Send + 'static,
+        T: Send + 'static,
+        E: Into<anyhow::Error> + Send + 'static,
+    {
+        let result = self.call(future).await;
+        let Err(err) = result else {
+            return result;
+        };
+        if !matches!(
+            err.downcast_ref::<SyncError>(),
+            Some(SyncError::Backend(BackendError::RateLimited(_)))
+        ) {
+            return Err(err);
+        }
+        let provider = self
+            .db
+            .read(move |c| accounts::account(c, account_id))
+            .await
+            .ok()
+            .flatten()
+            .map(|account| mailrs_discover::resolved_provider_name(account.provider_name()))
+            .unwrap_or_default();
+        if provider.is_empty() {
+            return Err(err);
+        }
+        Err(err.context(SyncError::asked_to_wait(&provider)))
     }
 
     /// Whether this computer has a gpg to run. Without one the window
@@ -565,13 +609,15 @@ impl Core {
     /// Runs the account's local rules over its new Inbox mail.
     pub async fn run_rules(&self, account_id: AccountId) -> Result<mailrs_sync::rules::Ran> {
         let rules = Arc::clone(&self.rules);
-        self.call(async move { rules.run_due(account_id).await }).await
+        self.call(async move { rules.run_due(account_id).await })
+            .await
     }
 
     /// Sends rule changes that waited for a ManageSieve server.
     pub async fn send_rule_changes(&self, account_id: AccountId) -> Result<mailrs_sync::SentRules> {
         let settings = Arc::clone(&self.gmail_settings);
-        self.call(async move { settings.send_rule_changes(account_id).await }).await
+        self.call(async move { settings.send_rule_changes(account_id).await })
+            .await
     }
 
     /// Mail actions and the undo stack behind them. See
@@ -789,7 +835,10 @@ impl Core {
             // ticks off what either of them asks.
             let found = match demo {
                 true => {
-                    let net = Watched { net: Offline, heard };
+                    let net = Watched {
+                        net: Offline,
+                        heard,
+                    };
                     tokio::join!(
                         mailrs_discover::find(&net, &address),
                         mailrs_discover::find_jmap(&net, &address)
@@ -868,14 +917,34 @@ impl Core {
     /// `url`, then keeps the account, the server and the password, and
     /// starts it, so its calendars are read at the next tick. Nothing is
     /// kept when the login fails.
-    pub async fn sign_in_calendar(&self, url: String, user_name: String, password: String) -> Result<Account> {
+    pub async fn sign_in_calendar(
+        &self,
+        url: String,
+        user_name: String,
+        password: String,
+    ) -> Result<Account> {
         let engine = self.calendar_engine()?;
-        let (db, passwords, calendar_copy) = (self.db.clone(), Arc::clone(&self.secrets.passwords), self.calendar_copy());
+        let (db, passwords, calendar_copy) = (
+            self.db.clone(),
+            Arc::clone(&self.secrets.passwords),
+            self.calendar_copy(),
+        );
         self.call(async move {
-            let new = NewCalDav { url, user_name, password };
+            let new = NewCalDav {
+                url,
+                user_name,
+                password,
+            };
             // A failure is a `CalDavSignInError`, which the dialog reads
             // back out of the `anyhow::Error` to word what went wrong.
-            let account = caldav_signed_in(&finding::RealProbe, &db, Arc::clone(&passwords), new, now_millis()).await?;
+            let account = caldav_signed_in(
+                &finding::RealProbe,
+                &db,
+                Arc::clone(&passwords),
+                new,
+                now_millis(),
+            )
+            .await?;
             engine.start_account(account.id, connect_caldav(&db, passwords, &account).await?);
             // The same login added again signs its account in again, which
             // the copy reads at once rather than when it is next due.
@@ -896,10 +965,25 @@ impl Core {
         password: String,
     ) -> Result<Account> {
         let engine = self.calendar_engine()?;
-        let (db, passwords, calendar_copy) = (self.db.clone(), Arc::clone(&self.secrets.passwords), self.calendar_copy());
+        let (db, passwords, calendar_copy) = (
+            self.db.clone(),
+            Arc::clone(&self.secrets.passwords),
+            self.calendar_copy(),
+        );
         self.call(async move {
-            let new = NewCalDav { url, user_name, password };
-            let account = caldav_signed_in_again(&finding::RealProbe, &db, Arc::clone(&passwords), account_id, new).await?;
+            let new = NewCalDav {
+                url,
+                user_name,
+                password,
+            };
+            let account = caldav_signed_in_again(
+                &finding::RealProbe,
+                &db,
+                Arc::clone(&passwords),
+                account_id,
+                new,
+            )
+            .await?;
             engine.start_account(account.id, connect_caldav(&db, passwords, &account).await?);
             // The copy stops waiting out the read the old password failed.
             calendar_copy.permission_changed(account.id);
@@ -914,7 +998,9 @@ impl Core {
         if self.demo {
             bail!(gettext("Demo mode cannot add real accounts."));
         }
-        self.engine.current().ok_or_else(|| anyhow!("sync is not running"))
+        self.engine
+            .current()
+            .ok_or_else(|| anyhow!("sync is not running"))
     }
 
     /// Signs in to a POP3 account: signs in to the POP3 server, which
@@ -1060,9 +1146,11 @@ impl Core {
         if self.demo {
             return false;
         }
-        self.call(async move { Ok::<_, anyhow::Error>(mailrs_sync::sign_in::browser_ready(&offer).await) })
-            .await
-            .is_ok_and(|ready| ready != BrowserReady::NotOffered)
+        self.call(async move {
+            Ok::<_, anyhow::Error>(mailrs_sync::sign_in::browser_ready(&offer).await)
+        })
+        .await
+        .is_ok_and(|ready| ready != BrowserReady::NotOffered)
     }
 
     /// Signs in to a JMAP server on its own page in the browser, keeps the
@@ -1097,7 +1185,8 @@ impl Core {
             let canceled = async move {
                 let _ = cancel.recv().await;
             };
-            let signed = jmap_in_browser(&connector, offer, &address, dav_password, open, canceled).await?;
+            let signed =
+                jmap_in_browser(&connector, offer, &address, dav_password, open, canceled).await?;
             engine.start_account(signed.account.id, signed.services);
             Ok::<_, anyhow::Error>(signed.account)
         })
@@ -1119,80 +1208,98 @@ impl Core {
         let (db, secrets, engine) = (self.db.clone(), self.secrets.clone(), self.engine.current());
         let connector = self.connector();
         let account_id = account.id;
-        let found = self.call(async move {
-            let session = match account.provider {
-                Provider::Jmap => db.read(move |c| mailrs_store::jmap::load(c, account_id)).await?,
-                _ => None,
-            };
-            let offers = |capability: &str| session.as_ref().is_some_and(|saved| saved.offers(capability));
-            let offers_contacts = offers(mailrs_jmap::CONTACTS);
-            let Some((host, user, password)) = dav_login(&db, &secrets, &account).await? else {
-                // An account signed in through the browser has no password
-                // to search with: it takes its provider's servers from the
-                // table, on the session's own site, and sends them its token.
-                let Some(saved) = session.as_ref().filter(|saved| saved.auth == mailrs_store::jmap::JmapAuth::OAuth) else {
-                    return Ok(ServicesFound { contacts: offers_contacts, ..ServicesFound::default() });
+        let found = self
+            .call(async move {
+                let session = match account.provider {
+                    Provider::Jmap => {
+                        db.read(move |c| mailrs_store::jmap::load(c, account_id))
+                            .await?
+                    }
+                    _ => None,
                 };
-                let (mut found, changed) = finding::keep_oauth_table(&db, &account, &saved.session_url).await?;
-                if saved.offers(mailrs_jmap::CONTACTS) {
+                let offers = |capability: &str| {
+                    session
+                        .as_ref()
+                        .is_some_and(|saved| saved.offers(capability))
+                };
+                let offers_contacts = offers(mailrs_jmap::CONTACTS);
+                let Some((host, user, password)) = dav_login(&db, &secrets, &account).await? else {
+                    // An account signed in through the browser has no password
+                    // to search with: it takes its provider's servers from the
+                    // table, on the session's own site, and sends them its token.
+                    let Some(saved) = session
+                        .as_ref()
+                        .filter(|saved| saved.auth == mailrs_store::jmap::JmapAuth::OAuth)
+                    else {
+                        return Ok(ServicesFound {
+                            contacts: offers_contacts,
+                            ..ServicesFound::default()
+                        });
+                    };
+                    let (mut found, changed) =
+                        finding::keep_oauth_table(&db, &account, &saved.session_url).await?;
+                    if saved.offers(mailrs_jmap::CONTACTS) {
+                        found.carddav = None;
+                        found.carddav_missed = None;
+                    }
+                    if saved.offers(mailrs_jmap::CALENDARS) {
+                        found.caldav = None;
+                        found.caldav_missed = None;
+                    }
+                    if changed {
+                        restart_services(&connector, engine, &account).await?;
+                    }
+                    return Ok(ServicesFound {
+                        calendar: found.caldav.is_some(),
+                        contacts: found.carddav.is_some() || offers_contacts,
+                        rules_on_server: false,
+                        calendar_missed: found.caldav_missed,
+                        contacts_missed: found.carddav_missed,
+                    });
+                };
+                let net = RealNet::new()?;
+                let mut found = finding::find_services(
+                    &net,
+                    &finding::RealProbe,
+                    &account.email,
+                    account.provider_name(),
+                    &host,
+                    &user,
+                    &password,
+                )
+                .await;
+                // POP3 mail never reaches a server's rules, so a ManageSieve
+                // host found beside a POP3 server is not kept.
+                if account.provider == Provider::Pop3 {
+                    found.sieve = None;
+                }
+                // Contacts and rules over JMAP win over a server found beside
+                // it, so nothing comes twice.
+                if offers_contacts {
                     found.carddav = None;
                     found.carddav_missed = None;
                 }
-                if saved.offers(mailrs_jmap::CALENDARS) {
-                    found.caldav = None;
-                    found.caldav_missed = None;
+                if offers(mailrs_jmap::SIEVE) {
+                    found.sieve = None;
                 }
+                let changed = finding::keep_found(&db, account.id, &found).await?;
                 if changed {
                     restart_services(&connector, engine, &account).await?;
                 }
-                return Ok(ServicesFound {
-                    calendar: found.caldav.is_some(),
-                    contacts: found.carddav.is_some() || offers_contacts,
-                    rules_on_server: false,
+                Ok::<_, anyhow::Error>(ServicesFound {
+                    calendar: found.caldav.is_some_and(|f| f.confirmed),
+                    contacts: found.carddav.is_some_and(|f| f.confirmed) || offers_contacts,
+                    rules_on_server: found.sieve.is_some(),
                     calendar_missed: found.caldav_missed,
                     contacts_missed: found.carddav_missed,
-                });
-            };
-            let net = RealNet::new()?;
-            let mut found = finding::find_services(
-                &net,
-                &finding::RealProbe,
-                &account.email,
-                account.provider_name(),
-                &host,
-                &user,
-                &password,
-            )
-            .await;
-            // POP3 mail never reaches a server's rules, so a ManageSieve
-            // host found beside a POP3 server is not kept.
-            if account.provider == Provider::Pop3 {
-                found.sieve = None;
-            }
-            // Contacts and rules over JMAP win over a server found beside
-            // it, so nothing comes twice.
-            if offers_contacts {
-                found.carddav = None;
-                found.carddav_missed = None;
-            }
-            if offers(mailrs_jmap::SIEVE) {
-                found.sieve = None;
-            }
-            let changed = finding::keep_found(&db, account.id, &found).await?;
-            if changed {
-                restart_services(&connector, engine, &account).await?;
-            }
-            Ok::<_, anyhow::Error>(ServicesFound {
-                calendar: found.caldav.is_some_and(|f| f.confirmed),
-                contacts: found.carddav.is_some_and(|f| f.confirmed) || offers_contacts,
-                rules_on_server: found.sieve.is_some(),
-                calendar_missed: found.caldav_missed,
-                contacts_missed: found.carddav_missed,
+                })
             })
-        })
-        .await?;
+            .await?;
         let mut misses = self.misses.borrow_mut();
-        for (kind, missed) in [(ServiceKind::CalDav, found.calendar_missed), (ServiceKind::CardDav, found.contacts_missed)] {
+        for (kind, missed) in [
+            (ServiceKind::CalDav, found.calendar_missed),
+            (ServiceKind::CardDav, found.contacts_missed),
+        ] {
             match missed {
                 Some(miss) => misses.insert((account_id, kind), miss),
                 None => misses.remove(&(account_id, kind)),
@@ -1233,7 +1340,9 @@ impl Core {
         let connector = self.connector();
         self.call(async move {
             let Some((_, user, password)) = dav_login(&db, &secrets, &account).await? else {
-                bail!(gettext("This account keeps no password a calendar or contacts server takes."));
+                bail!(gettext(
+                    "This account keeps no password a calendar or contacts server takes."
+                ));
             };
             finding::use_typed(
                 &finding::RealProbe,
@@ -1256,10 +1365,11 @@ impl Core {
         let connector = self.connector();
         self.call(async move {
             let Some((_, _, password)) = dav_login(&db, &secrets, &account).await? else {
-                bail!(gettext("This account keeps no password a calendar or contacts server takes."));
+                bail!(gettext(
+                    "This account keeps no password a calendar or contacts server takes."
+                ));
             };
-            finding::confirm_found(&finding::RealProbe, &db, account.id, kind, &password)
-                .await?;
+            finding::confirm_found(&finding::RealProbe, &db, account.id, kind, &password).await?;
             restart_services(&connector, engine, &account).await
         })
         .await
@@ -1341,7 +1451,12 @@ fn table_offer(account: &Account) -> Option<JmapFound> {
     let name = mailrs_discover::resolved_provider_name(account.provider_name());
     let provider = mailrs_discover::jmap_named(&name)?;
     let session_url = mailrs_discover::jmap_session_named(&name)?;
-    Some(JmapFound { session_url, source: mailrs_discover::Source::Table, confirm: false, provider: Some(provider) })
+    Some(JmapFound {
+        session_url,
+        source: mailrs_discover::Source::Table,
+        confirm: false,
+        provider: Some(provider),
+    })
 }
 
 impl Core {
@@ -1354,7 +1469,11 @@ impl Core {
     /// The JMAP session `account` can switch to: the one a look found, or
     /// the table's before the look has run.
     pub fn offer_of(&self, account: &Account) -> Option<JmapFound> {
-        self.switch_offers.borrow().get(&account.id).cloned().or_else(|| table_offer(account))
+        self.switch_offers
+            .borrow()
+            .get(&account.id)
+            .cloned()
+            .or_else(|| table_offer(account))
     }
 
     /// Looks once a run for a JMAP session for each IMAP account: the
@@ -1398,10 +1517,25 @@ impl Core {
     /// stops while the switch runs; afterwards the account starts again on
     /// whatever the store names, JMAP or still IMAP, whether or not the
     /// switch went through.
-    pub async fn switch_to_jmap(&self, account: Account, how: mailrs_sync::switch::SwitchSignIn) -> Result<mailrs_sync::switch::Switched> {
-        let engine = self.engine.current().ok_or_else(|| anyhow!("sync is not running"))?;
-        let (db, secrets, outbox, demo) = (self.db.clone(), self.secrets.clone(), Arc::clone(&self.outbox), self.demo);
-        let reach = Reach { connector: self.connector(), demo: self.demo_mail.clone() };
+    pub async fn switch_to_jmap(
+        &self,
+        account: Account,
+        how: mailrs_sync::switch::SwitchSignIn,
+    ) -> Result<mailrs_sync::switch::Switched> {
+        let engine = self
+            .engine
+            .current()
+            .ok_or_else(|| anyhow!("sync is not running"))?;
+        let (db, secrets, outbox, demo) = (
+            self.db.clone(),
+            self.secrets.clone(),
+            Arc::clone(&self.outbox),
+            self.demo,
+        );
+        let reach = Reach {
+            connector: self.connector(),
+            demo: self.demo_mail.clone(),
+        };
         let switched = self
             .call(async move {
                 let id = account.id;
@@ -1461,7 +1595,9 @@ impl Core {
             let canceled = async move {
                 let _ = cancel.recv().await;
             };
-            Ok::<_, anyhow::Error>(mailrs_sync::sign_in::browser_grant(offer, &address, open, canceled).await?)
+            Ok::<_, anyhow::Error>(
+                mailrs_sync::sign_in::browser_grant(offer, &address, open, canceled).await?,
+            )
         })
         .await
     }
@@ -1471,7 +1607,13 @@ impl Core {
 /// or marks it as needing a sign-in when nothing signs it in. Once a
 /// switch went through, its local rules move into the server's Sieve
 /// script first, where the server runs one and takes them.
-async fn start_again(reach: &Reach, engine: &SyncEngine, db: &Db, account: &Account, switched: bool) -> Result<()> {
+async fn start_again(
+    reach: &Reach,
+    engine: &SyncEngine,
+    db: &Db,
+    account: &Account,
+    switched: bool,
+) -> Result<()> {
     match reach.connect(account).await? {
         Connected::Ready(mut services) => {
             if switched {
@@ -1481,7 +1623,8 @@ async fn start_again(reach: &Reach, engine: &SyncEngine, db: &Db, account: &Acco
         }
         Connected::NeedsSignIn => {
             let id = account.id;
-            db.write(move |c| accounts::set_state(c, id, AccountState::NeedsReauth)).await?;
+            db.write(move |c| accounts::set_state(c, id, AccountState::NeedsReauth))
+                .await?;
         }
     }
     Ok(())
@@ -1556,9 +1699,16 @@ pub(crate) async fn dav_login(
         .ok_or_else(|| anyhow!("no session kept"))?;
     let host = mailrs_discover::jmap_named(account.provider_name())
         .and_then(|p| p.imap_host)
-        .or_else(|| url::Url::parse(&saved.session_url).ok().and_then(|u| u.host_str().map(str::to_string)))
+        .or_else(|| {
+            url::Url::parse(&saved.session_url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string))
+        })
         .unwrap_or_default();
-    let user = saved.user_name.clone().unwrap_or_else(|| account.email.clone());
+    let user = saved
+        .user_name
+        .clone()
+        .unwrap_or_else(|| account.email.clone());
     let (dav, jmap) = (Arc::clone(&secrets.passwords), Arc::clone(&secrets.jmap));
     let password = match tokio::task::spawn_blocking(move || dav.load(id)).await?? {
         Some(password) => Some(password),
@@ -1580,7 +1730,9 @@ async fn restart_services(
     let Some(engine) = engine else { return Ok(()) };
     match connector.connect(account).await? {
         mailrs_sync::Connected::Ready(services) => engine.start_account(account.id, services),
-        mailrs_sync::Connected::NeedsSignIn(_) => return Err(SyncError::Backend(BackendError::NeedsReauth).into()),
+        mailrs_sync::Connected::NeedsSignIn(_) => {
+            return Err(SyncError::Backend(BackendError::NeedsReauth).into());
+        }
     }
     Ok(())
 }
@@ -1626,7 +1778,9 @@ impl Reach {
             // `MAILRS_DEMO_STUCK_KEYRING` names an account whose start
             // waits on a keyring that never answers, to see what the
             // sidebar says then.
-            if std::env::var("MAILRS_DEMO_STUCK_KEYRING").is_ok_and(|id| id == account.id.to_string()) {
+            if std::env::var("MAILRS_DEMO_STUCK_KEYRING")
+                .is_ok_and(|id| id == account.id.to_string())
+            {
                 return Err(SyncError::NoAnswer(mailrs_sync::KEYRING).into());
             }
             // The demo's accounts talk to their sample servers and need no
@@ -1658,7 +1812,9 @@ impl EnginePort {
     /// the sync settings replaces it, and the new one starts every
     /// account itself.
     fn current(&self) -> bool {
-        self.running.current().is_some_and(|now| Arc::ptr_eq(&now, &self.engine))
+        self.running
+            .current()
+            .is_some_and(|now| Arc::ptr_eq(&now, &self.engine))
     }
 }
 
@@ -1673,7 +1829,10 @@ impl Starting<AccountServices> for EnginePort {
     /// The engine never runs an account that did not start, so the store
     /// and the sidebar hear its state here.
     async fn report(&self, account_id: AccountId, state: AccountState) {
-        let marked = self.db.write(move |c| accounts::set_state(c, account_id, state)).await;
+        let marked = self
+            .db
+            .write(move |c| accounts::set_state(c, account_id, state))
+            .await;
         if let Err(err) = marked {
             tracing::warn!(account = account_id, %err, "could not record the account's state");
         }
@@ -1685,7 +1844,12 @@ impl Starting<AccountServices> for EnginePort {
 
     async fn wanted(&self, account_id: AccountId) -> bool {
         self.current()
-            && matches!(self.db.read(move |c| accounts::account(c, account_id)).await, Ok(Some(_)))
+            && matches!(
+                self.db
+                    .read(move |c| accounts::account(c, account_id))
+                    .await,
+                Ok(Some(_))
+            )
     }
 }
 
@@ -1724,7 +1888,12 @@ struct Watched<N> {
 }
 
 impl<N: Net> Watched<N> {
-    async fn asking<T>(&self, check: Check, ask: impl Future<Output = T>, found: impl Fn(&T) -> bool) -> T {
+    async fn asking<T>(
+        &self,
+        check: Check,
+        ask: impl Future<Output = T>,
+        found: impl Fn(&T) -> bool,
+    ) -> T {
         let _ = self.heard.try_send(Heard::Asked(check));
         let answer = ask.await;
         let _ = self.heard.try_send(Heard::Answered(check, found(&answer)));
@@ -1739,8 +1908,10 @@ impl<N: Net> Net for Watched<N> {
     }
 
     async fn srv(&self, name: &str) -> Vec<SrvRecord> {
-        self.asking(Check::Common, self.net.srv(name), |records| !records.is_empty())
-            .await
+        self.asking(Check::Common, self.net.srv(name), |records| {
+            !records.is_empty()
+        })
+        .await
     }
 
     async fn get(&self, url: &str) -> Option<String> {
@@ -1754,8 +1925,12 @@ impl<N: Net> Net for Watched<N> {
     }
 
     async fn reaches(&self, host: &str, port: u16, security: Security) -> bool {
-        self.asking(Check::Common, self.net.reaches(host, port, security), |ok| *ok)
-            .await
+        self.asking(
+            Check::Common,
+            self.net.reaches(host, port, security),
+            |ok| *ok,
+        )
+        .await
     }
 }
 
@@ -1772,6 +1947,37 @@ mod tests {
     /// in memory at a time.
     static DEMO: Mutex<()> = Mutex::new(());
 
+    #[test]
+    fn an_account_call_keeps_its_provider_and_original_error() {
+        let _demo = DEMO.lock().unwrap_or_else(PoisonError::into_inner);
+        let core = Core::open(true).expect("the demo core opens");
+        let account = running_fastmail(&core);
+        let err = core
+            .runtime
+            .block_on(core.call_for(account.id, async {
+                Err::<(), _>(mailrs_sync::SyncError::Backend(
+                    mailrs_sync::BackendError::RateLimited(None),
+                ))
+            }))
+            .unwrap_err();
+        assert_eq!(err.to_string(), "Fastmail asked Penguin Mail to wait");
+        assert!(matches!(
+            err.downcast_ref::<mailrs_sync::SyncError>(),
+            Some(mailrs_sync::SyncError::Backend(
+                mailrs_sync::BackendError::RateLimited(_)
+            ))
+        ));
+        let unknown = core
+            .runtime
+            .block_on(core.call_for(-1, async {
+                Err::<(), _>(mailrs_sync::SyncError::Backend(
+                    mailrs_sync::BackendError::RateLimited(None),
+                ))
+            }))
+            .unwrap_err();
+        assert_eq!(unknown.to_string(), "The server asked Penguin Mail to wait");
+    }
+
     #[tokio::test]
     async fn an_account_without_a_calendar_password_skips_the_search() {
         let dir = tempfile::tempdir().unwrap();
@@ -1779,21 +1985,34 @@ mod tests {
         let secrets = mailrs_sync::passwords::Secrets::memory();
         let account = db
             .write(|c| {
-                let id = mailrs_store::accounts::insert_jmap_account(c, "me@fastmail.com", "Fastmail", 0)?.unwrap();
-                mailrs_store::jmap::save(c, id, &mailrs_store::jmap::JmapSaved {
-                    session_url: "https://api.fastmail.com/jmap/session".into(),
-                    auth: mailrs_store::jmap::JmapAuth::Bearer,
-                    user_name: None,
-                    labels: true,
-                    capabilities: vec![mailrs_jmap::MAIL.into()],
-                    oauth: None,
-                    owner: None,
-                })?;
+                let id = mailrs_store::accounts::insert_jmap_account(
+                    c,
+                    "me@fastmail.com",
+                    "Fastmail",
+                    0,
+                )?
+                .unwrap();
+                mailrs_store::jmap::save(
+                    c,
+                    id,
+                    &mailrs_store::jmap::JmapSaved {
+                        session_url: "https://api.fastmail.com/jmap/session".into(),
+                        auth: mailrs_store::jmap::JmapAuth::Bearer,
+                        user_name: None,
+                        labels: true,
+                        capabilities: vec![mailrs_jmap::MAIL.into()],
+                        oauth: None,
+                        owner: None,
+                    },
+                )?;
                 Ok(mailrs_store::accounts::account(c, id)?.unwrap())
             })
             .await
             .unwrap();
-        assert_eq!(super::dav_login(&db, &secrets, &account).await.unwrap(), None);
+        assert_eq!(
+            super::dav_login(&db, &secrets, &account).await.unwrap(),
+            None
+        );
     }
 
     #[tokio::test]
@@ -1805,16 +2024,26 @@ mod tests {
         let secrets = mailrs_sync::passwords::Secrets::memory();
         let account = db
             .write(|c| {
-                let id = mailrs_store::accounts::insert_jmap_account(c, "me@fastmail.com", "Fastmail", 0)?.unwrap();
-                mailrs_store::jmap::save(c, id, &mailrs_store::jmap::JmapSaved {
-                    session_url: "https://api.fastmail.com/jmap/session".into(),
-                    auth: mailrs_store::jmap::JmapAuth::Bearer,
-                    user_name: None,
-                    labels: true,
-                    capabilities: vec![mailrs_jmap::MAIL.into()],
-                    oauth: None,
-                    owner: None,
-                })?;
+                let id = mailrs_store::accounts::insert_jmap_account(
+                    c,
+                    "me@fastmail.com",
+                    "Fastmail",
+                    0,
+                )?
+                .unwrap();
+                mailrs_store::jmap::save(
+                    c,
+                    id,
+                    &mailrs_store::jmap::JmapSaved {
+                        session_url: "https://api.fastmail.com/jmap/session".into(),
+                        auth: mailrs_store::jmap::JmapAuth::Bearer,
+                        user_name: None,
+                        labels: true,
+                        capabilities: vec![mailrs_jmap::MAIL.into()],
+                        oauth: None,
+                        owner: None,
+                    },
+                )?;
                 Ok(mailrs_store::accounts::account(c, id)?.unwrap())
             })
             .await
@@ -1822,7 +2051,14 @@ mod tests {
         secrets.jmap.save(account.id, "token").unwrap();
         secrets.passwords.save(account.id, "app").unwrap();
         let login = super::dav_login(&db, &secrets, &account).await.unwrap();
-        assert_eq!(login, Some(("imap.fastmail.com".into(), "me@fastmail.com".into(), "app".into())));
+        assert_eq!(
+            login,
+            Some((
+                "imap.fastmail.com".into(),
+                "me@fastmail.com".into(),
+                "app".into()
+            ))
+        );
     }
 
     #[test]
@@ -1843,7 +2079,11 @@ mod tests {
         let _demo = DEMO.lock().unwrap_or_else(PoisonError::into_inner);
         let core = Core::open(true).expect("the demo core opens");
         assert!(
-            !core.engine.current().expect("an engine is running").window_open(),
+            !core
+                .engine
+                .current()
+                .expect("an engine is running")
+                .window_open(),
             "nobody has shown a window yet"
         );
 
@@ -1854,7 +2094,11 @@ mod tests {
         .expect("the demo keeps new settings in memory");
 
         assert!(
-            !core.engine.current().expect("an engine is running").window_open(),
+            !core
+                .engine
+                .current()
+                .expect("an engine is running")
+                .window_open(),
             "restarting the engine for new settings must not open it"
         );
     }
@@ -1875,7 +2119,10 @@ mod tests {
         .expect("the demo keeps new settings in memory");
 
         assert!(
-            core.engine.current().expect("an engine is running").window_open(),
+            core.engine
+                .current()
+                .expect("an engine is running")
+                .window_open(),
             "the new engine keeps the window open"
         );
     }
@@ -1891,12 +2138,25 @@ mod tests {
             provider: mailrs_domain::Provider::Imap,
             provider_name: name.map(str::to_string),
         };
-        let accounts = vec![imap(1, "me@fastmail.com", Some("Fastmail")), imap(2, "me@example.org", None)];
+        let accounts = vec![
+            imap(1, "me@fastmail.com", Some("Fastmail")),
+            imap(2, "me@example.org", None),
+        ];
         let mut looked = std::collections::HashSet::new();
         let ids = |list: Vec<mailrs_domain::Account>| list.iter().map(|a| a.id).collect::<Vec<_>>();
-        assert_eq!(ids(super::to_look(accounts.clone(), &mut looked, false)), [1], "the table needs no network");
-        assert_eq!(ids(super::to_look(accounts.clone(), &mut looked, true)), [2]);
-        assert!(super::to_look(accounts, &mut looked, true).is_empty(), "once a run");
+        assert_eq!(
+            ids(super::to_look(accounts.clone(), &mut looked, false)),
+            [1],
+            "the table needs no network"
+        );
+        assert_eq!(
+            ids(super::to_look(accounts.clone(), &mut looked, true)),
+            [2]
+        );
+        assert!(
+            super::to_look(accounts, &mut looked, true).is_empty(),
+            "once a run"
+        );
     }
 
     #[test]
@@ -1910,16 +2170,32 @@ mod tests {
         };
         let found = super::table_offer(&account).expect("the table names Fastmail's session");
         assert_eq!(found.session_url, "https://api.fastmail.com/jmap/session");
-        let gmail = mailrs_domain::Account { provider: mailrs_domain::Provider::Gmail, ..account };
-        assert!(super::table_offer(&gmail).is_none(), "only an IMAP account switches");
+        let gmail = mailrs_domain::Account {
+            provider: mailrs_domain::Provider::Gmail,
+            ..account
+        };
+        assert!(
+            super::table_offer(&gmail).is_none(),
+            "only an IMAP account switches"
+        );
     }
 
     /// The demo's Fastmail account, once its loop runs.
     fn running_fastmail(core: &Core) -> mailrs_domain::Account {
-        let accounts = core.runtime.block_on(core.db.read(mailrs_store::accounts::list_accounts)).expect("the demo lists its accounts");
-        let fastmail = accounts.into_iter().find(|a| a.email == "dana@fastmail.example").expect("the demo has a Fastmail account");
+        let accounts = core
+            .runtime
+            .block_on(core.db.read(mailrs_store::accounts::list_accounts))
+            .expect("the demo lists its accounts");
+        let fastmail = accounts
+            .into_iter()
+            .find(|a| a.email == "dana@fastmail.example")
+            .expect("the demo has a Fastmail account");
         for _ in 0..200 {
-            if core.engine.current().is_some_and(|e| e.account(fastmail.id).is_ok()) {
+            if core
+                .engine
+                .current()
+                .is_some_and(|e| e.account(fastmail.id).is_ok())
+            {
                 return fastmail;
             }
             std::thread::sleep(std::time::Duration::from_millis(25));
@@ -1932,7 +2208,11 @@ mod tests {
         let _demo = DEMO.lock().unwrap_or_else(PoisonError::into_inner);
         let core = Core::open(true).expect("the demo core opens");
         let fastmail = running_fastmail(&core);
-        let before = core.engine.current().and_then(|e| e.account(fastmail.id).ok()).expect("it runs");
+        let before = core
+            .engine
+            .current()
+            .and_then(|e| e.account(fastmail.id).ok())
+            .expect("it runs");
         let to = mailrs_sync::switch::SwitchTo {
             session_url: "https://api.fastmail.com/jmap/session".into(),
             token: true,
@@ -1940,13 +2220,30 @@ mod tests {
             secret: "not a token".into(),
         };
 
-        let switched = futures::executor::block_on(core.switch_to_jmap(fastmail.clone(), mailrs_sync::switch::SwitchSignIn::Typed(to)));
+        let switched = futures::executor::block_on(core.switch_to_jmap(
+            fastmail.clone(),
+            mailrs_sync::switch::SwitchSignIn::Typed(to),
+        ));
 
         assert!(switched.is_err(), "the demo switches nothing");
-        let after = core.engine.current().and_then(|e| e.account(fastmail.id).ok()).expect("it runs again");
-        assert!(!Arc::ptr_eq(&before, &after), "the switch stopped it and started it again");
+        let after = core
+            .engine
+            .current()
+            .and_then(|e| e.account(fastmail.id).ok())
+            .expect("it runs again");
+        assert!(
+            !Arc::ptr_eq(&before, &after),
+            "the switch stopped it and started it again"
+        );
         let id = fastmail.id;
-        let stored = core.runtime.block_on(core.db.read(move |c| mailrs_store::accounts::account(c, id))).unwrap().unwrap();
+        let stored = core
+            .runtime
+            .block_on(
+                core.db
+                    .read(move |c| mailrs_store::accounts::account(c, id)),
+            )
+            .unwrap()
+            .unwrap();
         assert_eq!(stored.provider, mailrs_domain::Provider::Imap);
     }
 }

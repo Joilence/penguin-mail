@@ -24,7 +24,9 @@ fn actions(h: &Harness) -> MailActions<Connected> {
 
 /// What the fake Gmail holds on a message, sorted.
 fn in_gmail(h: &Harness, id: &str) -> Vec<String> {
-    let mut labels = h.fake.with(|s| mailrs_gmail::labels::label_ids(&s.messages[id]));
+    let mut labels = h
+        .fake
+        .with(|s| mailrs_gmail::labels::label_ids(&s.messages[id]));
     labels.sort();
     labels
 }

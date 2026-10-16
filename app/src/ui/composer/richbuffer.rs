@@ -915,6 +915,7 @@ mod tests {
         crate::ui::preferences::space::checks::run();
         crate::ui::preferences::dialog::checks::run();
         crate::ui::copied::checks::run();
+        crate::ui::link_preview::checks::run();
         crate::ui::add_account::checks::run();
         // The extraction script needs a real engine to run in, and this
         // is the one test binary that starts one.

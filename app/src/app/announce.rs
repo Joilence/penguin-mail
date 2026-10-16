@@ -49,7 +49,11 @@ mod tests {
                     })
                     .collect();
                 apply(c, account_id, &changes)?;
-                announced(c, account_id, &["c".to_string(), "a".to_string(), "gone".to_string()])
+                announced(
+                    c,
+                    account_id,
+                    &["c".to_string(), "a".to_string(), "gone".to_string()],
+                )
             })
             .await
             .unwrap();
@@ -90,17 +94,38 @@ mod tests {
                 )?;
                 let mut m = meta("m", "t", 1, &["INBOX", "UNREAD"]);
                 m.account_id = account_id;
-                apply(c, account_id, &[Change::Upsert { meta: Box::new(m), generation: 1 }])?;
+                apply(
+                    c,
+                    account_id,
+                    &[Change::Upsert {
+                        meta: Box::new(m),
+                        generation: 1,
+                    }],
+                )?;
                 Ok(account_id)
             })
             .await
             .unwrap();
         let asked = vec!["m".to_string()];
-        let snapshot = db.read(move |c| announced(c, account_id, &asked)).await.unwrap();
-        assert!(snapshot[0].is_unread(), "the snapshot the announcement works from");
+        let snapshot = db
+            .read(move |c| announced(c, account_id, &asked))
+            .await
+            .unwrap();
+        assert!(
+            snapshot[0].is_unread(),
+            "the snapshot the announcement works from"
+        );
 
         db.write(move |c| {
-            apply(c, account_id, &[Change::of("m", Membership::Keyword(keyword::SEEN.into()), true)])
+            apply(
+                c,
+                account_id,
+                &[Change::of(
+                    "m",
+                    Membership::Keyword(keyword::SEEN.into()),
+                    true,
+                )],
+            )
         })
         .await
         .unwrap();
@@ -114,7 +139,10 @@ mod tests {
             issued.issue("token".into(), notice.target.unwrap(), notice.buttons);
         }
         let asked = issued.in_threads(account_id, &["t".to_string()]);
-        let (token, ids) = asked.into_iter().next().expect("the notification waits on the message");
+        let (token, ids) = asked
+            .into_iter()
+            .next()
+            .expect("the notification waits on the message");
         let still = db
             .read(move |c| unread_in_inbox(c, account_id, &ids))
             .await
@@ -133,14 +161,23 @@ mod tests {
         let m = meta("a", "t1", "ann@example.com", "Kites", 1);
         assert!(in_view(&m, Some(&Target::thread(1, "t1"))));
         assert!(!in_view(&m, None), "no conversation is open");
-        assert!(!in_view(&m, Some(&Target::thread(1, "t2"))), "another thread is open");
-        assert!(!in_view(&m, Some(&Target::thread(2, "t1"))), "the same thread id on another account");
+        assert!(
+            !in_view(&m, Some(&Target::thread(1, "t2"))),
+            "another thread is open"
+        );
+        assert!(
+            !in_view(&m, Some(&Target::thread(2, "t1"))),
+            "the same thread id on another account"
+        );
         let one = Target {
             account_id: 1,
             thread_id: "t1".into(),
             message_id: Some("b".into()),
         };
-        assert!(in_view(&m, Some(&one)), "the thread is on screen when one message of it is");
+        assert!(
+            in_view(&m, Some(&one)),
+            "the thread is on screen when one message of it is"
+        );
     }
 
     #[test]

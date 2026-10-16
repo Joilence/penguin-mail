@@ -346,9 +346,21 @@ async fn implicit_creation_still_requests_withheld_calendar_permission() {
     h.read_calendars(calendars()).await;
     h.gmail.withhold(mailrs_gmail::CALENDAR_SCOPE);
     let day = monday();
-    let answer = h.run("create_event", json!({"title": "Review", "start": at(day, "10:00"), "end": at(day, "11:00")})).await;
-    assert!(answer.unwrap_err().contains("needs permission to use the calendar"));
-    assert_eq!(h.asked().permission_asked, [(h.account_id, Permission::Calendar)]);
+    let answer = h
+        .run(
+            "create_event",
+            json!({"title": "Review", "start": at(day, "10:00"), "end": at(day, "11:00")}),
+        )
+        .await;
+    assert!(
+        answer
+            .unwrap_err()
+            .contains("needs permission to use the calendar")
+    );
+    assert_eq!(
+        h.asked().permission_asked,
+        [(h.account_id, Permission::Calendar)]
+    );
 }
 
 #[tokio::test]
@@ -829,13 +841,28 @@ async fn an_account_with_no_calendar_that_takes_events_says_so() {
 async fn implicit_creation_does_not_use_hidden_or_read_only_calendars() {
     for hidden in [false, true] {
         let h = harness().await;
-        h.read_calendars(calendars().into_iter().map(|c| Calendar {
-            hidden,
-            access: if hidden { Access::Owner } else { Access::Reader },
-            ..c
-        }).collect()).await;
+        h.read_calendars(
+            calendars()
+                .into_iter()
+                .map(|c| Calendar {
+                    hidden,
+                    access: if hidden {
+                        Access::Owner
+                    } else {
+                        Access::Reader
+                    },
+                    ..c
+                })
+                .collect(),
+        )
+        .await;
         let day = monday();
-        let answer = h.run("create_event", json!({"title": "Review", "start": at(day, "10:00"), "end": at(day, "11:00")})).await;
+        let answer = h
+            .run(
+                "create_event",
+                json!({"title": "Review", "start": at(day, "10:00"), "end": at(day, "11:00")}),
+            )
+            .await;
         assert!(answer.unwrap_err().contains("no visible writable calendar"));
         assert!(h.asked().questions.is_empty());
     }

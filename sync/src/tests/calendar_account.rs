@@ -24,9 +24,18 @@ pub(super) fn calendar_only() -> (Arc<FakeDav>, AccountServices) {
 #[tokio::test]
 async fn no_mail_answers_unsupported_or_nothing_and_offers_nothing() {
     let mail = NoMail;
-    assert!(matches!(mail.mailboxes().await, Err(BackendError::Unsupported)));
-    assert!(matches!(mail.send(b"raw", None).await, Err(BackendError::Unsupported)));
-    assert!(matches!(mail.search(&SearchQuery::Native("x".into()), 10).await, Err(BackendError::Unsupported)));
+    assert!(matches!(
+        mail.mailboxes().await,
+        Err(BackendError::Unsupported)
+    ));
+    assert!(matches!(
+        mail.send(b"raw", None).await,
+        Err(BackendError::Unsupported)
+    ));
+    assert!(matches!(
+        mail.search(&SearchQuery::Native("x".into()), 10).await,
+        Err(BackendError::Unsupported)
+    ));
     let refused = mail.apply(&["m1".to_string()], &[]).await.unwrap_err();
     assert_eq!(refused.taken, 0);
     assert!(matches!(refused.error, BackendError::Unsupported));
@@ -69,12 +78,22 @@ async fn an_account_added_under_a_removed_ones_id_lists_its_calendars_at_once() 
     let names = |id| {
         let db = db.clone();
         async move {
-            let calendars = db.read(move |c| mailrs_store::calendar::calendars(c, id)).await.unwrap();
-            calendars.into_iter().map(|calendar| calendar.name).collect::<Vec<_>>()
+            let calendars = db
+                .read(move |c| mailrs_store::calendar::calendars(c, id))
+                .await
+                .unwrap();
+            calendars
+                .into_iter()
+                .map(|calendar| calendar.name)
+                .collect::<Vec<_>>()
         }
     };
 
-    let first = db.write(|c| accounts::insert_caldav_account(c, "robin@cloud.example.org", 0)).await.unwrap().unwrap();
+    let first = db
+        .write(|c| accounts::insert_caldav_account(c, "robin@cloud.example.org", 0))
+        .await
+        .unwrap()
+        .unwrap();
     engine.start_account(first, calendar_only().1);
     copy.refresh_due(&[first], NOW, true).await.unwrap();
     assert_eq!(names(first).await, ["Personal"]);
@@ -83,13 +102,21 @@ async fn an_account_added_under_a_removed_ones_id_lists_its_calendars_at_once() 
     // it, and its row goes with its calendars.
     engine.stop_account(first);
     copy.forget(first);
-    db.write(move |c| accounts::delete_account(c, first)).await.unwrap();
+    db.write(move |c| accounts::delete_account(c, first))
+        .await
+        .unwrap();
 
-    let second = db.write(|c| accounts::insert_caldav_account(c, "dana@other.example.net", 0)).await.unwrap().unwrap();
+    let second = db
+        .write(|c| accounts::insert_caldav_account(c, "dana@other.example.net", 0))
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(second, first, "SQLite gives the id back");
     let dav = Arc::new(FakeDav::new());
     dav.add_collection("/cal/work/", Kind::Calendar, "Work", None);
     engine.start_account(second, AccountServices::calendar_only(dav));
-    copy.refresh_due(&[second], NOW + 2 * 60_000, true).await.unwrap();
+    copy.refresh_due(&[second], NOW + 2 * 60_000, true)
+        .await
+        .unwrap();
     assert_eq!(names(second).await, ["Work"]);
 }

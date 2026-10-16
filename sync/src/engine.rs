@@ -16,7 +16,7 @@ use tokio::time::Instant;
 use crate::account::{DEFAULT_BODY_CACHE_BYTES, DEFAULT_WINDOW_DAYS};
 use crate::raw_cache::{RAW_CACHE_BYTES, RawCache};
 use crate::{
-    AccountServices, AccountSync, BackendError, MailBackend, SyncError, backoff_delay, background,
+    AccountServices, AccountSync, BackendError, MailBackend, SyncError, background, backoff_delay,
     now_millis, poll_offset, with_jitter,
 };
 

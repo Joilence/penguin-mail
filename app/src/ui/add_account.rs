@@ -19,12 +19,15 @@ use adw::prelude::*;
 use gtk::{gio, glib, graphene};
 use mailrs_discover::Server;
 use mailrs_domain::translate::{fill, gettext};
-use mailrs_domain::{Account, AccountId, MailSet, Provider, RemoveSetting, Role as MailRole, SignInClient};
+use mailrs_domain::{
+    Account, AccountId, MailSet, Provider, RemoveSetting, Role as MailRole, SignInClient,
+};
 use mailrs_store::{accounts, servers};
 
 use crate::add_account::lookup::{Check, Checks, State};
-use crate::add_account::post::{self, Advice, AdviceKind, Band, Browser, BrowserWords, Stamp, Step, Tile};
-use mailrs_sync::sign_in::Wanted;
+use crate::add_account::post::{
+    self, Advice, AdviceKind, Band, Browser, BrowserWords, Stamp, Step, Tile,
+};
 use crate::add_account::{
     self, Address, Asking, Continue, Failure, FailureKind, JmapProposal, Next, Outcome, Proposal,
     Protocol, Removal, Role, Running, Typed,
@@ -33,6 +36,7 @@ use crate::core::Core;
 use crate::permission::Permission;
 use crate::ui::post_band::PostBand;
 use crate::ui::tile_grid::TileGrid;
+use mailrs_sync::sign_in::Wanted;
 
 /// The dialog's size, the mockup's.
 const WIDTH: i32 = 480;
@@ -155,7 +159,9 @@ pub fn present(
         Opening::ByHand => this.open_address(None, true),
         Opening::Browser(browser) => this.start_browser(browser, None),
         Opening::Calendar => this.open_calendar(),
-        Opening::Again(account) if account.provider == Provider::CalDav => this.load_calendar(account),
+        Opening::Again(account) if account.provider == Provider::CalDav => {
+            this.load_calendar(account)
+        }
         Opening::Again(account) => this.load_saved(account),
         Opening::Preview(stage) => preview(&this, &stage),
     }
@@ -953,7 +959,8 @@ fn fold_token(page: &PasswordPage) {
     page.switch_folded.set(page.use_token.get_visible());
     page.password.set_visible(false);
     page.use_token.set_visible(false);
-    page.password_list.set_visible(page.dav_password.get_visible());
+    page.password_list
+        .set_visible(page.dav_password.get_visible());
     page.hint.area.set_visible(false);
     page.token_instead.set_visible(true);
     page.sign_in.set_visible(false);
@@ -965,7 +972,8 @@ fn unfold_token(page: &PasswordPage) {
     page.browser.remove_css_class("suggested-action");
     if !page.password.get_visible() {
         page.password.set_visible(true);
-        page.use_token.set_visible(page.switch_folded.replace(false));
+        page.use_token
+            .set_visible(page.switch_folded.replace(false));
     }
     page.token_instead.set_visible(false);
     page.password_list.set_visible(true);
@@ -1031,7 +1039,9 @@ fn password_page() -> PasswordPage {
     password_list.append(&use_token);
     let dav_password = adw::PasswordEntryRow::builder()
         .title(gettext("App Password for Calendar"))
-        .tooltip_text(gettext("Optional. Make an app password with calendar access in the provider's settings."))
+        .tooltip_text(gettext(
+            "Optional. Make an app password with calendar access in the provider's settings.",
+        ))
         .visible(false)
         .build();
     crate::ui::name(&dav_password, &gettext("App Password for Calendar"));
@@ -1174,7 +1184,10 @@ enum Saved {
     Mail(add_account::Kept),
     /// The session row, and the calendar and contacts servers that
     /// refused a browser sign-in.
-    Jmap(mailrs_store::jmap::JmapSaved, Vec<mailrs_store::services::ServiceKind>),
+    Jmap(
+        mailrs_store::jmap::JmapSaved,
+        Vec<mailrs_store::services::ServiceKind>,
+    ),
 }
 
 struct ClosedPage {
@@ -1302,7 +1315,9 @@ fn added_page() -> AddedPage {
     let note = label("", &["post-note"]);
     let withheld = boxed_list();
     let grant_note = label(
-        &gettext("Grant Access opens Google's page again. You can also do it later in Preferences."),
+        &gettext(
+            "Grant Access opens Google's page again. You can also do it later in Preferences.",
+        ),
         &["post-note"],
     );
     let open_inbox = pill(&gettext("Open Inbox"), true);
@@ -1319,9 +1334,7 @@ fn added_page() -> AddedPage {
     );
     grant.set_hexpand(true);
     grant.set_halign(gtk::Align::End);
-    let grant_buttons = gtk::Box::builder()
-        .css_classes(["post-bottom"])
-        .build();
+    let grant_buttons = gtk::Box::builder().css_classes(["post-bottom"]).build();
     grant_buttons.append(&not_now);
     grant_buttons.append(&grant);
     let body = &banded.body;
@@ -1402,9 +1415,7 @@ impl ServerRows {
             security.add(adw::Toggle::builder().label(label).name(label).build());
         }
         crate::ui::name(&security, &gettext("Security"));
-        let security_row = adw::ActionRow::builder()
-            .title(gettext("Security"))
-            .build();
+        let security_row = adw::ActionRow::builder().title(gettext("Security")).build();
         security_row.add_suffix(&security);
         group.add(&host);
         group.add(&port);
@@ -1574,21 +1585,17 @@ fn manual_step() -> ManualStep {
         protocol.add(adw::Toggle::builder().label(label).name(label).build());
     }
     crate::ui::name(&protocol, &gettext("Protocol"));
-    let protocol_row = adw::ActionRow::builder()
-        .title(gettext("Protocol"))
-        .build();
+    let protocol_row = adw::ActionRow::builder().title(gettext("Protocol")).build();
     protocol_row.add_suffix(&protocol);
     incoming.add(&protocol_row);
-    let incoming_rows = ServerRows::new(
-        Role::Incoming,
-        Some(protocol.clone()),
-        &incoming,
-        imap_user,
-    );
+    let incoming_rows =
+        ServerRows::new(Role::Incoming, Some(protocol.clone()), &incoming, imap_user);
     let removal = Removals::new();
     let login = adw::PreferencesGroup::builder()
         .title(gettext("Sign-In"))
-        .description(gettext("Leave the user names empty to sign in with your address."))
+        .description(gettext(
+            "Leave the user names empty to sign in with your address.",
+        ))
         .build();
     let outgoing = adw::PreferencesGroup::builder()
         .title(gettext("Outgoing Mail"))
@@ -1886,8 +1893,16 @@ impl Dialog {
         // line; narrower, they stack, so Cancel is never cut off.
         if let Ok(condition) = adw::BreakpointCondition::parse("max-width: 440sp") {
             let narrow = adw::Breakpoint::new(condition);
-            narrow.add_setter(&browser.buttons, "orientation", Some(&gtk::Orientation::Vertical.to_value()));
-            narrow.add_setter(&browser.cancel, "halign", Some(&gtk::Align::Fill.to_value()));
+            narrow.add_setter(
+                &browser.buttons,
+                "orientation",
+                Some(&gtk::Orientation::Vertical.to_value()),
+            );
+            narrow.add_setter(
+                &browser.cancel,
+                "halign",
+                Some(&gtk::Align::Fill.to_value()),
+            );
             window.add_breakpoint(narrow);
         }
         Rc::new(Dialog {
@@ -1978,7 +1993,9 @@ impl Dialog {
         let add = on(Dialog::add_calendar);
         self.calendar.add.connect_clicked(move |_| add());
         let add = on(Dialog::add_calendar);
-        self.calendar.password.connect_entry_activated(move |_| add());
+        self.calendar
+            .password
+            .connect_entry_activated(move |_| add());
         let ready = on(|this| this.update_add_calendar());
         self.calendar.server.connect_changed(move |_| ready());
         let ready = on(|this| this.update_add_calendar());
@@ -1988,7 +2005,9 @@ impl Dialog {
         let look = on(Dialog::look);
         self.address.look.connect_clicked(move |_| look());
         let look = on(Dialog::look);
-        self.address.address.connect_entry_activated(move |_| look());
+        self.address
+            .address
+            .connect_entry_activated(move |_| look());
         let changed = on(Dialog::address_changed);
         self.address.address.connect_changed(move |_| changed());
         let take = on(Dialog::take_suggestion);
@@ -2004,9 +2023,13 @@ impl Dialog {
         let manual = on(Dialog::manual_from_password);
         self.password.down.connect_activated(move |_| manual());
         let manual = on(Dialog::manual_from_password);
-        self.password.failed_servers.connect_clicked(move |_| manual());
+        self.password
+            .failed_servers
+            .connect_clicked(move |_| manual());
         let as_pop3 = on(Dialog::manual_as_pop3);
-        self.password.pop3_offer.connect_activated(move |_| as_pop3());
+        self.password
+            .pop3_offer
+            .connect_activated(move |_| as_pop3());
         let manual = on(Dialog::manual_from_password);
         self.password.session.connect_activated(move |_| manual());
         let this = Rc::downgrade(self);
@@ -2024,13 +2047,21 @@ impl Dialog {
                 this.show_password(*imap);
             }
         });
-        self.password.imap_instead.connect_activated(move |_| imap());
+        self.password
+            .imap_instead
+            .connect_activated(move |_| imap());
         let token = on(|this| this.open_token());
-        self.password.token_instead.connect_row_activated(move |_, _| token());
+        self.password
+            .token_instead
+            .connect_row_activated(move |_, _| token());
         let follow = on(Dialog::follow_protocol);
-        self.manual.protocol.connect_active_notify(move |_| follow());
+        self.manual
+            .protocol
+            .connect_active_notify(move |_| follow());
         let sign_in = on(Dialog::sign_in);
-        self.password.failed_retry.connect_clicked(move |_| sign_in());
+        self.password
+            .failed_retry
+            .connect_clicked(move |_| sign_in());
         let sign_in = on(Dialog::sign_in);
         self.password.sign_in.connect_clicked(move |_| sign_in());
         let sign_in = on(Dialog::sign_in);
@@ -2059,7 +2090,9 @@ impl Dialog {
         let cancel = on(Dialog::cancel_browser);
         self.browser.cancel.connect_clicked(move |_| cancel());
         let jmap_browser = on(Dialog::start_jmap_browser);
-        self.password.browser.connect_clicked(move |_| jmap_browser());
+        self.password
+            .browser
+            .connect_clicked(move |_| jmap_browser());
         // Back from the page that waits for a JMAP sign-in ends the wait,
         // as Cancel does, so the password page can sign in again.
         let left = on(|this| {
@@ -2084,7 +2117,9 @@ impl Dialog {
                 this.finish(Done::OpenInbox(id));
             }
         });
-        self.finished.open_inbox.connect_clicked(move |_| open_inbox());
+        self.finished
+            .open_inbox
+            .connect_clicked(move |_| open_inbox());
         let another = on(Dialog::add_another);
         self.finished.another.connect_clicked(move |_| another());
         let not_now = on(|this| {
@@ -2105,7 +2140,13 @@ impl Dialog {
         // and an answer that comes later does not push the password page
         // over the address the person went back to.
         let back = on(|this| {
-            if this.nav.visible_page().and_then(|page| page.tag()).as_deref() == Some("address") {
+            if this
+                .nav
+                .visible_page()
+                .and_then(|page| page.tag())
+                .as_deref()
+                == Some("address")
+            {
                 this.asking.forget();
                 this.address.look.set_sensitive(true);
             }
@@ -2155,7 +2196,13 @@ impl Dialog {
 
     /// Says what the band shows on page `tag`, and shows it if that page
     /// is on screen.
-    fn set_band(&self, tag: &'static str, step: Step, stamp: Option<Stamp>, provider: Option<&str>) {
+    fn set_band(
+        &self,
+        tag: &'static str,
+        step: Step,
+        stamp: Option<Stamp>,
+        provider: Option<&str>,
+    ) {
         self.bands.borrow_mut().insert(
             tag,
             BandState {
@@ -2182,13 +2229,21 @@ impl Dialog {
             return;
         };
         let state = self.bands.borrow().get(tag).cloned().unwrap_or(BandState {
-            step: if tag == "servers" { Step::Servers } else { Step::Pick },
+            step: if tag == "servers" {
+                Step::Servers
+            } else {
+                Step::Pick
+            },
             stamp: None,
             provider: None,
         });
         // Server Settings covers the band, which keeps the pose it had.
         if let Some(band) = post::band_for(state.step) {
-            let stamp = if band == Band::Idle { None } else { state.stamp };
+            let stamp = if band == Band::Idle {
+                None
+            } else {
+                state.stamp
+            };
             self.band.show(band, stamp, state.provider.as_deref());
         }
     }
@@ -2319,9 +2374,7 @@ impl Dialog {
                 }
                 Next::Closed(_) => this.show_closed(&address),
                 Next::Google => this.start_browser(Browser::Google, Some(address.full())),
-                Next::Microsoft => {
-                    this.start_browser(Browser::Microsoft, Some(address.full()))
-                }
+                Next::Microsoft => this.start_browser(Browser::Microsoft, Some(address.full())),
                 Next::Manual { proposal, line } => this.show_manual(&proposal, Some(&line)),
             }
         });
@@ -2458,10 +2511,9 @@ impl Dialog {
                 self.address.advice_reveal.set_reveal_child(true);
                 // Once per change of advice, not per keystroke.
                 if before != advice.title {
-                    self.address.advice_reveal.announce(
-                        &advice.title,
-                        gtk::AccessibleAnnouncementPriority::Medium,
-                    );
+                    self.address
+                        .advice_reveal
+                        .announce(&advice.title, gtk::AccessibleAnnouncementPriority::Medium);
                 }
             }
             None => {
@@ -2482,7 +2534,12 @@ impl Dialog {
         self.closed
             .another_provider
             .set_visible(self.nav.find_page("pick").is_some());
-        self.set_band("closed", Step::Closed, Some(advice.stamp), Some(&advice.provider));
+        self.set_band(
+            "closed",
+            Step::Closed,
+            Some(advice.stamp),
+            Some(&advice.provider),
+        );
         self.push("closed");
     }
 
@@ -2541,12 +2598,12 @@ impl Dialog {
                 let info = proposal.info.as_ref();
                 let name = info.map(|i| post::short_name(&i.name)).unwrap_or_default();
                 let named = [("provider", name.as_str())];
-                let link = info.and_then(|i| i.app_password_url.clone()).map(|url| {
-                    add_account::Link {
-                        label: fill(&gettext("Open {provider}'s Settings"), &named),
-                        url,
-                    }
-                });
+                let link =
+                    info.and_then(|i| i.app_password_url.clone())
+                        .map(|url| add_account::Link {
+                            label: fill(&gettext("Open {provider}'s Settings"), &named),
+                            url,
+                        });
                 page.hint.show(
                     "advice",
                     Ok("dialog-password-symbolic"),
@@ -2592,7 +2649,8 @@ impl Dialog {
         self.jmap.replace(None);
         self.token.set(token);
         page.use_token.set_active(token);
-        page.use_token.set_visible(!add_account::token_only(&proposal));
+        page.use_token
+            .set_visible(!add_account::token_only(&proposal));
         let typed = self.typed.borrow().clone();
         let address = match &self.again {
             Some(account) => account.email.clone(),
@@ -2617,8 +2675,10 @@ impl Dialog {
             }
             None => {
                 if let Some(typed) = &typed {
-                    page.title.set_text(&add_account::jmap_title(&proposal, typed));
-                    page.lede.set_text(&add_account::jmap_found_line(&proposal, typed));
+                    page.title
+                        .set_text(&add_account::jmap_title(&proposal, typed));
+                    page.lede
+                        .set_text(&add_account::jmap_found_line(&proposal, typed));
                 }
             }
         }
@@ -2626,8 +2686,10 @@ impl Dialog {
         self.arrange_password(false);
         self.show_jmap_rows();
         page.pop3_offer.set_visible(false);
-        page.session.set_subtitle(&add_account::session_line(&proposal));
-        page.imap_instead.set_visible(proposal.imap.is_some() && self.again.is_none());
+        page.session
+            .set_subtitle(&add_account::session_line(&proposal));
+        page.imap_instead
+            .set_visible(proposal.imap.is_some() && self.again.is_none());
         page.imap_instead
             .set_subtitle(&add_account::imap_instead_line(&proposal));
         page.confirmed.set_active(false);
@@ -2719,8 +2781,9 @@ impl Dialog {
         let title = add_account::jmap_secret_title(token);
         page.password.set_title(&title);
         crate::ui::name(&page.password, &title);
-        page.dav_password
-            .set_visible(add_account::asks_dav_password(proposal, token) || self.again_dav_refused.get());
+        page.dav_password.set_visible(
+            add_account::asks_dav_password(proposal, token) || self.again_dav_refused.get(),
+        );
         match add_account::jmap_hint(proposal, token) {
             Some((heading, body, link)) => page.hint.show(
                 "advice",
@@ -2753,7 +2816,8 @@ impl Dialog {
             page.banded.body.add_css_class("post-found");
         }
         if card_first {
-            page.fields.reorder_child_after(&page.failed.area, None::<&gtk::Widget>);
+            page.fields
+                .reorder_child_after(&page.failed.area, None::<&gtk::Widget>);
             page.failed.area.add_css_class("post-first-card");
         } else {
             page.fields
@@ -2772,7 +2836,8 @@ impl Dialog {
     /// yes when Penguin Mail guessed them.
     fn show_hosts(&self, proposal: &Proposal) {
         let page = &self.password;
-        page.incoming.set_title(&add_account::incoming_title(proposal));
+        page.incoming
+            .set_title(&add_account::incoming_title(proposal));
         page.incoming
             .set_subtitle(&add_account::server_row_line(&proposal.incoming));
         // Signing in again keeps the protocol the account has.
@@ -3115,7 +3180,10 @@ impl Dialog {
         manual.content.set_description("");
         manual.protocol.set_active(add_account::JMAP_INDEX);
         manual.incoming.host.set_text(&jmap.session_url);
-        manual.incoming.user.set_text(jmap.user.as_deref().unwrap_or_default());
+        manual
+            .incoming
+            .user
+            .set_text(jmap.user.as_deref().unwrap_or_default());
         manual.problem.set_visible(false);
         self.push("servers");
     }
@@ -3150,7 +3218,9 @@ impl Dialog {
             false => String::new(),
         };
         manual.smtp_password.set_text(&held);
-        manual.removal.fill(proposal.pop3_remove.unwrap_or_default());
+        manual
+            .removal
+            .fill(proposal.pop3_remove.unwrap_or_default());
         manual
             .removal
             .group
@@ -3163,7 +3233,11 @@ impl Dialog {
     /// for it. The proposal on the password page stays IMAP, so going
     /// back without Use These Settings signs in as the page shows.
     fn manual_as_pop3(self: &Rc<Self>) {
-        let proposal = self.proposal.borrow().as_ref().and_then(add_account::as_pop3);
+        let proposal = self
+            .proposal
+            .borrow()
+            .as_ref()
+            .and_then(add_account::as_pop3);
         if let Some(proposal) = proposal {
             self.fill_manual(&proposal, None);
         }
@@ -3299,7 +3373,9 @@ impl Dialog {
     /// Use These Settings back as it was after a lookup ends.
     fn stop_locating(&self) {
         self.locating.set(false);
-        self.manual.use_them.set_label(&gettext("Use These Settings"));
+        self.manual
+            .use_them
+            .set_label(&gettext("Use These Settings"));
         self.manual.use_them.set_sensitive(true);
     }
 
@@ -3317,7 +3393,9 @@ impl Dialog {
                     if let Some(saved) = mailrs_store::jmap::load(c, id)? {
                         let refused = mailrs_store::services::all_misses(c)?
                             .into_iter()
-                            .filter(|(account, _, miss)| *account == id && *miss == mailrs_store::services::Miss::Refused)
+                            .filter(|(account, _, miss)| {
+                                *account == id && *miss == mailrs_store::services::Miss::Refused
+                            })
                             .map(|(_, kind, _)| kind)
                             .collect();
                         return Ok(Some(Saved::Jmap(saved, refused)));
@@ -3334,8 +3412,10 @@ impl Dialog {
                 .await;
             match saved {
                 Ok(Some(Saved::Jmap(saved, refused))) => {
-                    this.again_dav_refused.set(add_account::asks_dav_password_again(&saved, &refused));
-                    this.again_browser.set(saved.auth == mailrs_store::jmap::JmapAuth::OAuth);
+                    this.again_dav_refused
+                        .set(add_account::asks_dav_password_again(&saved, &refused));
+                    this.again_browser
+                        .set(saved.auth == mailrs_store::jmap::JmapAuth::OAuth);
                     this.show_jmap(add_account::saved_jmap(&account, &saved));
                 }
                 Ok(Some(Saved::Mail(kept))) => {
@@ -3387,10 +3467,14 @@ impl Dialog {
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
             let id = account.id;
-            let kept = this.core.read(move |c| mailrs_store::services::load(c, id)).await;
-            let server = kept
-                .ok()
-                .and_then(|kept| kept.into_iter().find(|s| s.kind == mailrs_store::services::ServiceKind::CalDav));
+            let kept = this
+                .core
+                .read(move |c| mailrs_store::services::load(c, id))
+                .await;
+            let server = kept.ok().and_then(|kept| {
+                kept.into_iter()
+                    .find(|s| s.kind == mailrs_store::services::ServiceKind::CalDav)
+            });
             if let Some(server) = server {
                 this.calendar.server.set_text(&server.url);
                 this.calendar.user.set_text(&server.user_name);
@@ -3411,7 +3495,9 @@ impl Dialog {
             &self.calendar.user.text(),
             &self.calendar.password.text(),
         );
-        self.calendar.add.set_sensitive(ready && !self.running.is_on());
+        self.calendar
+            .add
+            .set_sensitive(ready && !self.running.is_on());
     }
 
     /// Signs in to the calendar server and adds the account, or says on
@@ -3426,25 +3512,38 @@ impl Dialog {
             return;
         }
         let ticket = self.asking.ask();
-        let label = self.calendar.add.label().map(|label| label.to_string()).unwrap_or_default();
+        let label = self
+            .calendar
+            .add
+            .label()
+            .map(|label| label.to_string())
+            .unwrap_or_default();
         self.calendar.problem.set_visible(false);
         self.calendar.add.set_sensitive(false);
         self.calendar.add.set_label(&gettext("Signing In…"));
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
             let signed_in = match this.again.as_ref().map(|account| account.id) {
-                Some(id) => this.core.sign_in_calendar_again(id, server, user, password).await,
+                Some(id) => {
+                    this.core
+                        .sign_in_calendar_again(id, server, user, password)
+                        .await
+                }
                 None => this.core.sign_in_calendar(server, user, password).await,
             };
             this.running.end();
             this.calendar.add.set_label(&label);
             this.update_buttons();
             let done = match signed_in {
-                Ok(account) if add_account::signed_in_again(this.again.as_ref(), &account) => Done::SignedInAgain(account),
+                Ok(account) if add_account::signed_in_again(this.again.as_ref(), &account) => {
+                    Done::SignedInAgain(account)
+                }
                 Ok(_) => Done::CalendarAdded,
                 Err(err) => {
                     if this.asking.wants(ticket) {
-                        this.calendar.problem.set_text(&add_account::calendar_problem(&err, this.again.as_ref()));
+                        this.calendar
+                            .problem
+                            .set_text(&add_account::calendar_problem(&err, this.again.as_ref()));
                         this.calendar.problem.set_visible(true);
                     }
                     return;
@@ -3540,7 +3639,10 @@ impl Dialog {
                 (Browser::Google, Some(address)) => Wanted::Only(address),
                 (Browser::Microsoft, Some(address)) => Wanted::Suggested(address),
             };
-            let signed = this.core.sign_in_in_browser(browser, urls, wanted, canceled).await;
+            let signed = this
+                .core
+                .sign_in_in_browser(browser, urls, wanted, canceled)
+                .await;
             match signed {
                 // The account is kept whether or not the dialog is still
                 // open, so the window hears about it either way.
@@ -3555,11 +3657,11 @@ impl Dialog {
                         // Microsoft's consent is all or nothing, so only
                         // Google's page can leave a feature off.
                         let missing = match browser {
-                            Browser::Google => {
-                                crate::permission::withheld_permissions(crate::offered::withheld_for(
+                            Browser::Google => crate::permission::withheld_permissions(
+                                crate::offered::withheld_for(
                                     this.core.account(account.id).as_ref().map(|s| s.services()),
-                                ))
-                            }
+                                ),
+                            ),
                             Browser::Microsoft => Vec::new(),
                         };
                         this.show_added(&account, Some(stamp), Some(&missing));
@@ -3609,7 +3711,12 @@ impl Dialog {
         page.copy.set_visible(false);
         page.retry.set_visible(true);
         let provider = self.browser_provider.get().name();
-        self.set_band("browser", Step::Refused, Some(post::stamp_for(provider)), Some(provider));
+        self.set_band(
+            "browser",
+            Step::Refused,
+            Some(post::stamp_for(provider)),
+            Some(provider),
+        );
         page.retry.grab_focus();
         page.failed
             .area
@@ -3621,15 +3728,14 @@ impl Dialog {
         self.browser_deadline.set(Some(deadline));
         self.show_time_left();
         let weak = Rc::downgrade(self);
-        let timer = glib::timeout_add_local(Duration::from_millis(250), move || {
-            match weak.upgrade() {
+        let timer =
+            glib::timeout_add_local(Duration::from_millis(250), move || match weak.upgrade() {
                 Some(this) => {
                     this.show_time_left();
                     glib::ControlFlow::Continue
                 }
                 None => glib::ControlFlow::Break,
-            }
-        });
+            });
         if let Some(old) = self.browser_timer.replace(Some(timer)) {
             old.remove();
         }
@@ -3745,7 +3851,10 @@ impl Dialog {
         let dav_password = Some(self.password.dav_password.text().to_string())
             .filter(|password| !password.is_empty() && self.password.dav_password.is_visible());
         glib::spawn_future_local(async move {
-            let signed = this.core.sign_in_jmap_browser(offer, address, dav_password, urls, canceled).await;
+            let signed = this
+                .core
+                .sign_in_jmap_browser(offer, address, dav_password, urls, canceled)
+                .await;
             this.running.end();
             this.browser_jmap.replace(None);
             let canceling = this.browser_canceling.replace(false);
@@ -3768,19 +3877,26 @@ impl Dialog {
                     }
                 }
                 Err(err) if canceling && this.asking.wants(ticket) => {
-                    tracing::info!(kind = add_account::failure_kind(&err), "a JMAP browser sign-in was canceled");
+                    tracing::info!(
+                        kind = add_account::failure_kind(&err),
+                        "a JMAP browser sign-in was canceled"
+                    );
                     this.leave_browser_page();
                 }
                 Err(err) if this.asking.wants(ticket) => {
                     this.stop_browser();
-                    let failure = add_account::keyring_unplugged(&err, crate::keyring_plug::current())
-                        .unwrap_or_else(|| add_account::jmap_browser_failure(&err, &proposal));
+                    let failure =
+                        add_account::keyring_unplugged(&err, crate::keyring_plug::current())
+                            .unwrap_or_else(|| add_account::jmap_browser_failure(&err, &proposal));
                     this.back_to("password");
                     this.show_browser_failure(&failure);
                 }
                 Err(err) => {
                     let kind = add_account::failure_kind(&err);
-                    tracing::info!(kind, "a JMAP browser sign-in ended after its dialog moved on");
+                    tracing::info!(
+                        kind,
+                        "a JMAP browser sign-in ended after its dialog moved on"
+                    );
                 }
             }
             this.update_buttons();
@@ -3975,7 +4091,8 @@ impl Dialog {
                 .core
                 .read(move |c| {
                     let counts = mailrs_store::threads::mail_counts(c)?;
-                    let backfill = mailrs_store::accounts::sync_cursor(c, account_id)?.backfill_done;
+                    let backfill =
+                        mailrs_store::accounts::sync_cursor(c, account_id)?.backfill_done;
                     let (remove, first_check) = if provider == Provider::Pop3 {
                         (
                             mailrs_store::accounts::pop3_remove(c, account_id)?,
@@ -3984,7 +4101,10 @@ impl Dialog {
                     } else {
                         (RemoveSetting::Never, false)
                     };
-                    Ok((counts, add_account::added_page(provider, remove, backfill, first_check)))
+                    Ok((
+                        counts,
+                        add_account::added_page(provider, remove, backfill, first_check),
+                    ))
                 })
                 .await;
             if let Ok((counts, page)) = read
@@ -4008,13 +4128,20 @@ impl Dialog {
         self.finished.lede.set_text(&lede);
     }
 
-    fn show_counts(&self, account_id: AccountId, counts: &mailrs_store::threads::MailCounts, done: bool) {
+    fn show_counts(
+        &self,
+        account_id: AccountId,
+        counts: &mailrs_store::threads::MailCounts,
+        done: bool,
+    ) {
         for folder in &self.finished.folders {
             let count = counts
                 .account(account_id, &MailSet::Role(folder.role))
                 .threads
                 .max(0) as usize;
-            folder.state.set_text(&add_account::folder_line(count, done));
+            folder
+                .state
+                .set_text(&add_account::folder_line(count, done));
             if done {
                 folder.progress.set_fraction(1.0);
             } else if count > 0 {
@@ -4121,7 +4248,12 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
             this.browser.copy.set_visible(true);
             this.browser.retry.set_visible(false);
             let provider = browser.name();
-            this.set_band("browser", Step::Browser, Some(post::stamp_for(provider)), Some(provider));
+            this.set_band(
+                "browser",
+                Step::Browser,
+                Some(post::stamp_for(provider)),
+                Some(provider),
+            );
         }
         "lookup" => {
             this.typed.replace(Some(studio.clone()));
@@ -4175,7 +4307,8 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
                     ..fastmail_candidate()
                 }],
             };
-            let Next::Password(imap) = add_account::after_discovery(found, None, &studio, true) else {
+            let Next::Password(imap) = add_account::after_discovery(found, None, &studio, true)
+            else {
                 return;
             };
             this.typed.replace(Some(studio.clone()));
@@ -4250,7 +4383,11 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
                 _ => {}
             }
         }
-        "jmap-browser" | "jmap-browser-waiting" | "jmap-browser-canceling" | "jmap-browser-failed" | "jmap-browser-again" => {
+        "jmap-browser"
+        | "jmap-browser-waiting"
+        | "jmap-browser-canceling"
+        | "jmap-browser-failed"
+        | "jmap-browser-again" => {
             // The demo asks no server whether it takes the browser
             // sign-in, so the page shows the button as Fastmail's would.
             let fastmail = Address::parse("dana@fastmail.com").expect("a sample address");
@@ -4279,10 +4416,13 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
                     }
                 }
                 "jmap-browser-failed" => {
-                    let refused = anyhow::Error::new(mailrs_sync::sign_in::BrowserSignInError::Jmap(
-                        mailrs_jmap::JmapError::Declined,
+                    let refused =
+                        anyhow::Error::new(mailrs_sync::sign_in::BrowserSignInError::Jmap(
+                            mailrs_jmap::JmapError::Declined,
+                        ));
+                    this.show_browser_failure(&add_account::jmap_browser_failure(
+                        &refused, &proposal,
                     ));
-                    this.show_browser_failure(&add_account::jmap_browser_failure(&refused, &proposal));
                 }
                 // The page as an account that signed in through the
                 // browser sees it when it signs in again: show_jmap's
@@ -4297,7 +4437,9 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
                         provider_name: Some("Fastmail".into()),
                     };
                     this.password.title.set_text(&account.email);
-                    this.password.lede.set_text(&add_account::again_browser_line(&account));
+                    this.password
+                        .lede
+                        .set_text(&add_account::again_browser_line(&account));
                     this.password.name_list.set_visible(false);
                 }
                 _ => {}
@@ -4368,8 +4510,12 @@ fn preview(this: &Rc<Dialog>, stage: &str) {
                     this.band.set_letters(true);
                     let counts = [312, 0, 0];
                     for (folder, count) in this.finished.folders.iter().zip(counts) {
-                        folder.state.set_text(&add_account::folder_line(count, false));
-                        folder.progress.set_fraction(if count > 0 { 0.26 } else { 0.0 });
+                        folder
+                            .state
+                            .set_text(&add_account::folder_line(count, false));
+                        folder
+                            .progress
+                            .set_fraction(if count > 0 { 0.26 } else { 0.0 });
                     }
                 }
             });
@@ -4395,7 +4541,10 @@ pub(crate) mod checks {
         let page = password_page();
         page.dav_password.set_visible(true);
         fold_token(&page);
-        assert!(page.dav_password.is_visible(), "the browser sign-in sends it, so it shows");
+        assert!(
+            page.dav_password.is_visible(),
+            "the browser sign-in sends it, so it shows"
+        );
         assert!(!page.password.get_visible());
         assert!(!page.use_token.get_visible());
     }

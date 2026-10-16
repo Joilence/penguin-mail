@@ -11,9 +11,11 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use mailrs_domain::EpochMillis;
 
-use crate::client::{Collection, CollectionState, DavApi, Fetched, Homes, Kind, Member, Precondition, Synced};
-use crate::ids::canonical_href;
 use crate::DavError;
+use crate::client::{
+    Collection, CollectionState, DavApi, Fetched, Homes, Kind, Member, Precondition, Synced,
+};
+use crate::ids::canonical_href;
 
 #[derive(Default)]
 pub struct FakeState {
@@ -64,13 +66,19 @@ fn collection_of(href: &str) -> String {
 /// with no readable start stays in, as a server that cannot tell would
 /// keep it.
 fn starts_within(body: &str, from: EpochMillis, to: EpochMillis) -> bool {
-    let Some(line) = body.lines().find(|l| l.starts_with("DTSTART")) else { return true };
+    let Some(line) = body.lines().find(|l| l.starts_with("DTSTART")) else {
+        return true;
+    };
     let value = line.rsplit(':').next().unwrap_or_default().trim();
     let at = chrono::NaiveDateTime::parse_from_str(value.trim_end_matches('Z'), "%Y%m%dT%H%M%S")
         .map(|t| t.and_utc().timestamp_millis())
         .or_else(|_| {
-            chrono::NaiveDate::parse_from_str(value, "%Y%m%d")
-                .map(|d| d.and_hms_opt(0, 0, 0).unwrap_or_default().and_utc().timestamp_millis())
+            chrono::NaiveDate::parse_from_str(value, "%Y%m%d").map(|d| {
+                d.and_hms_opt(0, 0, 0)
+                    .unwrap_or_default()
+                    .and_utc()
+                    .timestamp_millis()
+            })
         });
     at.map_or(true, |at| at >= from && at < to)
 }
@@ -189,17 +197,32 @@ impl DavApi for FakeDav {
         let mut state = self.open()?;
         state.homes += 1;
         let addresses = state.addresses.clone();
-        Ok(Homes { principal: "/principal/".into(), calendar: Some("/cal/".into()), addressbook: Some("/card/".into()), addresses })
+        Ok(Homes {
+            principal: "/principal/".into(),
+            calendar: Some("/cal/".into()),
+            addressbook: Some("/card/".into()),
+            addresses,
+        })
     }
 
     async fn collections(&self, home: &str, kind: Kind) -> Result<Vec<Collection>, DavError> {
         let s = self.open()?;
-        Ok(s.collections.iter().filter(|c| c.kind == kind && c.href.starts_with(home)).cloned().collect())
+        Ok(s.collections
+            .iter()
+            .filter(|c| c.kind == kind && c.href.starts_with(home))
+            .cloned()
+            .collect())
     }
 
     async fn state(&self, collection: &str) -> Result<CollectionState, DavError> {
         let s = self.open()?;
-        let last = s.log.iter().filter(|(_, h, _)| collection_of(h) == collection).map(|(seq, _, _)| *seq).max().unwrap_or(0);
+        let last = s
+            .log
+            .iter()
+            .filter(|(_, h, _)| collection_of(h) == collection)
+            .map(|(seq, _, _)| *seq)
+            .max()
+            .unwrap_or(0);
         Ok(CollectionState {
             sync_token: (!s.no_sync).then(|| format!("t{}", s.seq)),
             ctag: Some(format!("c{last}")),
@@ -215,26 +238,48 @@ impl DavApi for FakeDav {
         s.syncs += 1;
         let since = match token {
             "" => None,
-            t => Some(t.strip_prefix('t').and_then(|n| n.parse::<u64>().ok()).ok_or(DavError::InvalidSyncToken)?),
+            t => Some(
+                t.strip_prefix('t')
+                    .and_then(|n| n.parse::<u64>().ok())
+                    .ok_or(DavError::InvalidSyncToken)?,
+            ),
         };
         if since.is_some_and(|n| n < s.forgotten_below) {
             return Err(DavError::InvalidSyncToken);
         }
-        let mut synced = Synced { token: format!("t{}", s.seq), more: s.always_more, ..Synced::default() };
+        let mut synced = Synced {
+            token: format!("t{}", s.seq),
+            more: s.always_more,
+            ..Synced::default()
+        };
         match since {
             None => {
-                for (href, (etag, _)) in s.resources.iter().filter(|(h, _)| collection_of(h) == collection) {
-                    synced.changed.push(Member { href: href.clone(), etag: etag.clone() });
+                for (href, (etag, _)) in s
+                    .resources
+                    .iter()
+                    .filter(|(h, _)| collection_of(h) == collection)
+                {
+                    synced.changed.push(Member {
+                        href: href.clone(),
+                        etag: etag.clone(),
+                    });
                 }
             }
             Some(n) => {
                 let mut last: BTreeMap<&str, bool> = BTreeMap::new();
-                for (_, href, removed) in s.log.iter().filter(|(seq, h, _)| *seq > n && collection_of(h) == collection) {
+                for (_, href, removed) in s
+                    .log
+                    .iter()
+                    .filter(|(seq, h, _)| *seq > n && collection_of(h) == collection)
+                {
                     last.insert(href, *removed);
                 }
                 for (href, removed) in last {
                     match (removed, s.resources.get(href)) {
-                        (false, Some((etag, _))) => synced.changed.push(Member { href: href.into(), etag: etag.clone() }),
+                        (false, Some((etag, _))) => synced.changed.push(Member {
+                            href: href.into(),
+                            etag: etag.clone(),
+                        }),
                         _ => synced.removed.push(href.into()),
                     }
                 }
@@ -243,7 +288,12 @@ impl DavApi for FakeDav {
         Ok(synced)
     }
 
-    async fn members(&self, collection: &str, kind: Kind, range: Option<(EpochMillis, EpochMillis)>) -> Result<Vec<Member>, DavError> {
+    async fn members(
+        &self,
+        collection: &str,
+        kind: Kind,
+        range: Option<(EpochMillis, EpochMillis)>,
+    ) -> Result<Vec<Member>, DavError> {
         let collection = canonical_href(collection);
         let s = self.open()?;
         Ok(s.resources
@@ -253,17 +303,31 @@ impl DavApi for FakeDav {
                 (Kind::Calendar, Some((from, to))) => starts_within(body, from, to),
                 _ => true,
             })
-            .map(|(href, (etag, _))| Member { href: href.clone(), etag: etag.clone() })
+            .map(|(href, (etag, _))| Member {
+                href: href.clone(),
+                etag: etag.clone(),
+            })
             .collect())
     }
 
-    async fn fetch(&self, _collection: &str, _kind: Kind, hrefs: &[String]) -> Result<Vec<Fetched>, DavError> {
+    async fn fetch(
+        &self,
+        _collection: &str,
+        _kind: Kind,
+        hrefs: &[String],
+    ) -> Result<Vec<Fetched>, DavError> {
         let mut s = self.open()?;
         s.gets += hrefs.len();
         Ok(hrefs
             .iter()
             .map(|h| canonical_href(h))
-            .filter_map(|h| s.resources.get(&h).map(|(etag, body)| Fetched { href: h, etag: etag.clone(), body: body.clone() }))
+            .filter_map(|h| {
+                s.resources.get(&h).map(|(etag, body)| Fetched {
+                    href: h,
+                    etag: etag.clone(),
+                    body: body.clone(),
+                })
+            })
             .collect())
     }
 
@@ -272,16 +336,28 @@ impl DavApi for FakeDav {
         let mut s = self.open()?;
         s.gets += 1;
         let (etag, body) = s.resources.get(href).cloned().ok_or(DavError::NotFound)?;
-        Ok(Fetched { href: href.into(), etag, body })
+        Ok(Fetched {
+            href: href.into(),
+            etag,
+            body,
+        })
     }
 
-    async fn put(&self, href: &str, body: &str, _kind: Kind, when: Precondition) -> Result<Option<String>, DavError> {
+    async fn put(
+        &self,
+        href: &str,
+        body: &str,
+        _kind: Kind,
+        when: Precondition,
+    ) -> Result<Option<String>, DavError> {
         let href = &canonical_href(href);
         let mut s = self.open()?;
         let held = s.resources.get(href).map(|(e, _)| e.clone());
         match (&when, &held) {
             (Precondition::NoneMatch, Some(_)) => return Err(DavError::Changed),
-            (Precondition::Match(want), Some(have)) if want != have => return Err(DavError::Changed),
+            (Precondition::Match(want), Some(have)) if want != have => {
+                return Err(DavError::Changed);
+            }
             (Precondition::Match(_), None) => return Err(DavError::NotFound),
             _ => {}
         }
@@ -317,7 +393,11 @@ impl DavApi for FakeDav {
             .iter()
             .filter(|(h, _)| collection_of(h) == collection)
             .find(|(_, (_, body))| body.lines().any(|l| l.trim() == wanted))
-            .map(|(href, (etag, body))| Fetched { href: href.clone(), etag: etag.clone(), body: body.clone() }))
+            .map(|(href, (etag, body))| Fetched {
+                href: href.clone(),
+                etag: etag.clone(),
+                body: body.clone(),
+            }))
     }
 
     async fn auto_schedule(&self, at: Option<&str>) -> Result<bool, DavError> {
@@ -356,7 +436,13 @@ mod tests {
         dav.put_resource("/cal/work/b.ics", "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n");
         dav.remove_resource("/cal/work/a.ics");
         let next = dav.sync("/cal/work/", &first.token).await.unwrap();
-        assert_eq!(next.changed.iter().map(|m| m.href.as_str()).collect::<Vec<_>>(), ["/cal/work/b.ics"]);
+        assert_eq!(
+            next.changed
+                .iter()
+                .map(|m| m.href.as_str())
+                .collect::<Vec<_>>(),
+            ["/cal/work/b.ics"]
+        );
         assert_eq!(next.removed, ["/cal/work/a.ics"]);
     }
 
@@ -366,7 +452,10 @@ mod tests {
         dav.add_collection("/cal/work/", Kind::Calendar, "Work", None);
         let first = dav.sync("/cal/work/", "").await.unwrap();
         dav.forget_tokens();
-        assert!(matches!(dav.sync("/cal/work/", &first.token).await, Err(DavError::InvalidSyncToken)));
+        assert!(matches!(
+            dav.sync("/cal/work/", &first.token).await,
+            Err(DavError::InvalidSyncToken)
+        ));
     }
 
     #[tokio::test]
@@ -375,7 +464,14 @@ mod tests {
         dav.add_collection("/cal/work/", Kind::Calendar, "Work", None);
         let etag = dav.put_resource("/cal/work/a.ics", "one");
         dav.put_resource("/cal/work/a.ics", "two");
-        let refused = dav.put("/cal/work/a.ics", "three", Kind::Calendar, Precondition::Match(etag)).await;
+        let refused = dav
+            .put(
+                "/cal/work/a.ics",
+                "three",
+                Kind::Calendar,
+                Precondition::Match(etag),
+            )
+            .await;
         assert!(matches!(refused, Err(DavError::Changed)));
     }
 
@@ -386,8 +482,14 @@ mod tests {
         dav.put_resource("/cal/work/a.ics", EVENT);
         let day = 86_400_000;
         let nov_1 = 1_793_491_200_000;
-        let inside = dav.members("/cal/work/", Kind::Calendar, Some((nov_1, nov_1 + day))).await.unwrap();
-        let after = dav.members("/cal/work/", Kind::Calendar, Some((nov_1 + day, i64::MAX))).await.unwrap();
+        let inside = dav
+            .members("/cal/work/", Kind::Calendar, Some((nov_1, nov_1 + day)))
+            .await
+            .unwrap();
+        let after = dav
+            .members("/cal/work/", Kind::Calendar, Some((nov_1 + day, i64::MAX)))
+            .await
+            .unwrap();
         assert_eq!((inside.len(), after.len()), (1, 0));
     }
 

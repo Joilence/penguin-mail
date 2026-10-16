@@ -3,26 +3,26 @@
 //! that just signed in.
 
 mod browser;
-mod jmap_browser;
 mod browser_grant;
+mod jmap_browser;
 pub mod own_client;
 
 pub use browser::{Browser, BrowserSignInError, SignedIn, Wanted, google_sign_in, in_browser};
-pub use jmap_browser::{BROWSER_WAIT, BrowserReady, JmapBrowser, browser_ready, jmap_in_browser};
 pub use browser_grant::{BrowserGrant, browser_grant};
+pub use jmap_browser::{BROWSER_WAIT, BrowserReady, JmapBrowser, browser_ready, jmap_in_browser};
 
 use std::sync::Arc;
 
-use mailrs_domain::translate::{fill, gettext};
 use mailrs_discover::Server;
+use mailrs_domain::translate::{fill, gettext};
 use mailrs_domain::{
     Account, AccountId, AccountState, EpochMillis, Provider, RemoveSetting, SignInClient,
 };
 use mailrs_gmail::OAuthClient;
 use mailrs_imap::{CheckError, ImapError};
 use mailrs_pop3::{Pop3Api, Pop3Client, Pop3Error};
-use mailrs_store::servers::{self, Pop3Servers, Servers};
 use mailrs_store::jmap::{JmapSaved, SessionOwner};
+use mailrs_store::servers::{self, Pop3Servers, Servers};
 use mailrs_store::services::{self, ServiceKind};
 use mailrs_store::{Db, StoreError, accounts};
 
@@ -135,7 +135,9 @@ pub async fn google_signed_in(
     let address = email.to_string();
     let before = db
         .read(move |c| match accounts::account_by_email(c, &address)? {
-            Some(held) if held.provider == Provider::Gmail => Ok(Some((held.id, accounts::sign_in_client(c, held.id)?))),
+            Some(held) if held.provider == Provider::Gmail => {
+                Ok(Some((held.id, accounts::sign_in_client(c, held.id)?)))
+            }
             _ => Ok(None),
         })
         .await?;
@@ -182,7 +184,9 @@ async fn keep_google_secrets(
     .map_err(|e| token(&e))?;
     let tokens = Arc::clone(&secrets.google);
     let (email, refresh) = (email.to_string(), refresh_token.to_string());
-    let saved = tokio::task::spawn_blocking(move || tokens.save(&email, &refresh)).await.map_err(|e| token(&e))?;
+    let saved = tokio::task::spawn_blocking(move || tokens.save(&email, &refresh))
+        .await
+        .map_err(|e| token(&e))?;
     if let Err(err) = saved {
         let clients = Arc::clone(&secrets.google_clients);
         let restored = tokio::task::spawn_blocking(move || match earlier {
@@ -191,7 +195,10 @@ async fn keep_google_secrets(
         })
         .await;
         if !matches!(restored, Ok(Ok(()))) {
-            tracing::warn!(account = id, "could not put back the Google client kept before a failed sign-in");
+            tracing::warn!(
+                account = id,
+                "could not put back the Google client kept before a failed sign-in"
+            );
         }
         return Err(token(&err));
     }
@@ -300,8 +307,13 @@ pub async fn imap_signed_in<P: PasswordStore + 'static>(
             });
         }
         Some(held) => {
-            save_passwords(Arc::clone(&passwords), held.id, password.clone(), smtp_password.clone())
-                .await?;
+            save_passwords(
+                Arc::clone(&passwords),
+                held.id,
+                password.clone(),
+                smtp_password.clone(),
+            )
+            .await?;
             held.id
         }
         None => {
@@ -369,7 +381,11 @@ pub enum CalDavSignInError {
     /// says which kind: an IMAP or POP3 account can take the server's
     /// calendars itself, and the page says so.
     #[error("{}", taken(.name, .provider))]
-    Taken { name: String, provider: String, holder: Provider },
+    Taken {
+        name: String,
+        provider: String,
+        holder: Provider,
+    },
     /// A calendar account already has the name, for a server at another
     /// address. Adding this one would take that account's place, so
     /// nothing was sent.
@@ -416,21 +432,27 @@ pub(crate) fn calendar_account_name(url: &str, user_name: &str) -> Option<String
 
 fn elsewhere(name: &str, address: &str) -> String {
     fill(
-        &gettext("A calendar account named {name} is already here, for the server at {address}. Remove it to add this server under that name."),
+        &gettext(
+            "A calendar account named {name} is already here, for the server at {address}. Remove it to add this server under that name.",
+        ),
         &[("name", name), ("address", address)],
     )
 }
 
 fn other_user(name: &str, user: &str) -> String {
     fill(
-        &gettext("A calendar account named {name} is already here, signed in to this server as {user}. Type {user} to sign it in again, or remove it to sign in as someone else."),
+        &gettext(
+            "A calendar account named {name} is already here, signed in to this server as {user}. Type {user} to sign it in again, or remove it to sign in as someone else.",
+        ),
         &[("name", name), ("user", user)],
     )
 }
 
 fn moves(name: &str, address: &str) -> String {
     fill(
-        &gettext("Sign In Again keeps {name} on the server at {address}. To use another server or user name, add it as a calendar account of its own."),
+        &gettext(
+            "Sign In Again keeps {name} on the server at {address}. To use another server or user name, add it as a calendar account of its own.",
+        ),
         &[("name", name), ("address", address)],
     )
 }
@@ -441,12 +463,19 @@ fn moves(name: &str, address: &str) -> String {
 fn kept_at(held: &Account, kept: Option<&services::FoundService>) -> String {
     match kept {
         Some(kept) => kept.url.clone(),
-        None => held.email.rsplit_once('@').map_or(&*held.email, |(_, host)| host).to_string(),
+        None => held
+            .email
+            .rsplit_once('@')
+            .map_or(&*held.email, |(_, host)| host)
+            .to_string(),
     }
 }
 
 /// The CalDAV server calendar account `id` keeps, when it keeps one.
-async fn kept_server(db: &Db, id: AccountId) -> Result<Option<services::FoundService>, CalDavSignInError> {
+async fn kept_server(
+    db: &Db,
+    id: AccountId,
+) -> Result<Option<services::FoundService>, CalDavSignInError> {
     let kept = db.read(move |c| services::load(c, id)).await?;
     Ok(kept.into_iter().find(|s| s.kind == ServiceKind::CalDav))
 }
@@ -463,7 +492,12 @@ fn same_login(kept: Option<&services::FoundService>, url: &str, user: &str) -> b
 /// holds the name, with the server it keeps in `kept`: another kind of
 /// account, a server at another address, or another user there. `None`
 /// when they are its own login.
-fn add_refused(held: &Account, kept: Option<&services::FoundService>, url: &str, user: &str) -> Option<CalDavSignInError> {
+fn add_refused(
+    held: &Account,
+    kept: Option<&services::FoundService>,
+    url: &str,
+    user: &str,
+) -> Option<CalDavSignInError> {
     if held.provider != Provider::CalDav {
         return Some(CalDavSignInError::taken(held.email.clone(), Some(held)));
     }
@@ -472,8 +506,14 @@ fn add_refused(held: &Account, kept: Option<&services::FoundService>, url: &str,
     }
     let name = held.email.clone();
     Some(match kept {
-        Some(kept) if mailrs_dav::same_address(&kept.url, url) => CalDavSignInError::OtherUser { name, user: kept.user_name.clone() },
-        _ => CalDavSignInError::Elsewhere { address: kept_at(held, kept), name },
+        Some(kept) if mailrs_dav::same_address(&kept.url, url) => CalDavSignInError::OtherUser {
+            name,
+            user: kept.user_name.clone(),
+        },
+        _ => CalDavSignInError::Elsewhere {
+            address: kept_at(held, kept),
+            name,
+        },
     })
 }
 
@@ -519,17 +559,23 @@ pub async fn caldav_signed_in<S: ServiceProbe, P: PasswordStore + 'static>(
 ) -> Result<Account, CalDavSignInError> {
     let _turn = SIGNING_IN.lock().await;
     let url = finding::https_url(&new.url).ok_or(CalDavSignInError::NotHttps)?;
-    let name = calendar_account_name(&url, &new.user_name)
-        .ok_or_else(|| SyncError::Backend(BackendError::Refused("the address names no host, or no user was given".into())))?;
+    let name = calendar_account_name(&url, &new.user_name).ok_or_else(|| {
+        SyncError::Backend(BackendError::Refused(
+            "the address names no host, or no user was given".into(),
+        ))
+    })?;
     let user_name = new.user_name.trim();
     let lookup = name.clone();
-    let held = db.read(move |c| accounts::account_by_email(c, &lookup)).await?;
+    let held = db
+        .read(move |c| accounts::account_by_email(c, &lookup))
+        .await?;
     if let Some(held) = held {
         let kept = kept_server(db, held.id).await?;
         if let Some(refused) = add_refused(&held, kept.as_ref(), &url, user_name) {
             return Err(refused);
         }
-        let server = finding::typed(probe, ServiceKind::CalDav, url, user_name, &new.password).await?;
+        let server =
+            finding::typed(probe, ServiceKind::CalDav, url, user_name, &new.password).await?;
         return keep_again(db, passwords, held, server, new.password).await;
     }
     let server = finding::typed(probe, ServiceKind::CalDav, url, user_name, &new.password).await?;
@@ -549,12 +595,17 @@ pub async fn caldav_signed_in<S: ServiceProbe, P: PasswordStore + 'static>(
             }
             // An account took the name while the server was asked. It is
             // checked as one found before asking would be.
-            let held = accounts::account_by_email(c, &name)?.ok_or(StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows))?;
-            let kept = services::load(c, held.id)?.into_iter().find(|s| s.kind == ServiceKind::CalDav);
-            Ok(match add_refused(&held, kept.as_ref(), &server.url, &server.user_name) {
-                Some(refused) => Added::Refused(refused),
-                None => Added::Found(held, server),
-            })
+            let held = accounts::account_by_email(c, &name)?
+                .ok_or(StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows))?;
+            let kept = services::load(c, held.id)?
+                .into_iter()
+                .find(|s| s.kind == ServiceKind::CalDav);
+            Ok(
+                match add_refused(&held, kept.as_ref(), &server.url, &server.user_name) {
+                    Some(refused) => Added::Refused(refused),
+                    None => Added::Found(held, server),
+                },
+            )
         })
         .await?;
     let id = match added {
@@ -590,7 +641,11 @@ pub async fn caldav_signed_in_again<S: ServiceProbe, P: PasswordStore + 'static>
     new: NewCalDav,
 ) -> Result<Account, CalDavSignInError> {
     let _turn = SIGNING_IN.lock().await;
-    let NewCalDav { url, user_name, password } = new;
+    let NewCalDav {
+        url,
+        user_name,
+        password,
+    } = new;
     let url = finding::https_url(&url).ok_or(CalDavSignInError::NotHttps)?;
     let user_name = user_name.trim();
     let held = account_by_id(db, id).await?;
@@ -600,7 +655,10 @@ pub async fn caldav_signed_in_again<S: ServiceProbe, P: PasswordStore + 'static>
     }
     let kept = kept_server(db, id).await?;
     if !same_login(kept.as_ref(), &url, user_name) {
-        return Err(CalDavSignInError::Moves { address: kept_at(&held, kept.as_ref()), name: held.email });
+        return Err(CalDavSignInError::Moves {
+            address: kept_at(&held, kept.as_ref()),
+            name: held.email,
+        });
     }
     let server = finding::typed(probe, ServiceKind::CalDav, url, user_name, &password).await?;
     keep_again(db, passwords, held, server, password).await
@@ -652,13 +710,21 @@ fn still_its(
     held: &Account,
     server: &services::FoundService,
 ) -> Result<Result<Account, CalDavSignInError>, StoreError> {
-    let now = accounts::account(c, held.id)?.filter(|now| now.email == held.email && now.provider == Provider::CalDav);
+    let now = accounts::account(c, held.id)?
+        .filter(|now| now.email == held.email && now.provider == Provider::CalDav);
     let Some(now) = now else {
-        return Ok(Err(CalDavSignInError::Store(StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows))));
+        return Ok(Err(CalDavSignInError::Store(StoreError::Sqlite(
+            rusqlite::Error::QueryReturnedNoRows,
+        ))));
     };
-    let kept = services::load(c, held.id)?.into_iter().find(|s| s.kind == ServiceKind::CalDav);
+    let kept = services::load(c, held.id)?
+        .into_iter()
+        .find(|s| s.kind == ServiceKind::CalDav);
     if !same_login(kept.as_ref(), &server.url, &server.user_name) {
-        return Ok(Err(CalDavSignInError::Moves { address: kept_at(&now, kept.as_ref()), name: now.email }));
+        return Ok(Err(CalDavSignInError::Moves {
+            address: kept_at(&now, kept.as_ref()),
+            name: now.email,
+        }));
     }
     Ok(Ok(now))
 }
@@ -669,7 +735,9 @@ fn still_its(
 async fn account_by_id(db: &Db, id: AccountId) -> Result<Account, CalDavSignInError> {
     db.read(move |c| accounts::account(c, id))
         .await?
-        .ok_or(CalDavSignInError::Store(StoreError::Sqlite(rusqlite::Error::QueryReturnedNoRows)))
+        .ok_or(CalDavSignInError::Store(StoreError::Sqlite(
+            rusqlite::Error::QueryReturnedNoRows,
+        )))
 }
 
 impl CalDavSignInError {
@@ -677,7 +745,9 @@ impl CalDavSignInError {
     fn taken(name: String, held: Option<&Account>) -> Self {
         CalDavSignInError::Taken {
             name,
-            provider: held.map(|held| held.provider_name().to_string()).unwrap_or_default(),
+            provider: held
+                .map(|held| held.provider_name().to_string())
+                .unwrap_or_default(),
             holder: held.map(|held| held.provider).unwrap_or_default(),
         }
     }
@@ -812,7 +882,11 @@ impl SignedAs {
         SignedAs {
             owner: SessionOwner {
                 username: session.username.clone(),
-                mail_account: session.primary_accounts.get(mailrs_jmap::MAIL).cloned().unwrap_or_default(),
+                mail_account: session
+                    .primary_accounts
+                    .get(mailrs_jmap::MAIL)
+                    .cloned()
+                    .unwrap_or_default(),
             },
             sends_as: checked.addresses.clone(),
         }
@@ -825,8 +899,13 @@ impl SignedAs {
         let (address, username) = (address.trim(), self.owner.username.trim());
         let local = address.split_once('@').map(|(local, _)| local);
         username.eq_ignore_ascii_case(address)
-            || (!username.is_empty() && !username.contains('@') && local.is_some_and(|l| l.eq_ignore_ascii_case(username)))
-            || self.sends_as.iter().any(|a| a.trim().eq_ignore_ascii_case(address))
+            || (!username.is_empty()
+                && !username.contains('@')
+                && local.is_some_and(|l| l.eq_ignore_ascii_case(username)))
+            || self
+                .sends_as
+                .iter()
+                .any(|a| a.trim().eq_ignore_ascii_case(address))
     }
 }
 
@@ -835,7 +914,10 @@ impl SignedAs {
     /// A session whose user name is `address`, with mail account `A1`.
     pub(crate) fn address(address: &str) -> SignedAs {
         SignedAs {
-            owner: SessionOwner { username: address.into(), mail_account: "A1".into() },
+            owner: SessionOwner {
+                username: address.into(),
+                mail_account: "A1".into(),
+            },
             sends_as: vec![address.into()],
         }
     }
@@ -848,14 +930,24 @@ impl SignedAs {
 /// owner was recorded, and a new account, need a session that sends as the
 /// address. A browser signed in to another account, or a session URL typed
 /// for someone else's server, then changes nothing.
-fn same_owner(held: Option<&JmapSaved>, address: &str, session_url: &str, signed: &SignedAs) -> bool {
+fn same_owner(
+    held: Option<&JmapSaved>,
+    address: &str,
+    session_url: &str,
+    signed: &SignedAs,
+) -> bool {
     if let Some(held) = held {
         if !mailrs_jmap::same_server(&held.session_url, session_url) {
             return false;
         }
         if let Some(owner) = &held.owner {
-            let user = !owner.username.trim().is_empty() && owner.username.trim().eq_ignore_ascii_case(signed.owner.username.trim());
-            let account = !owner.mail_account.is_empty() && owner.mail_account == signed.owner.mail_account;
+            let user = !owner.username.trim().is_empty()
+                && owner
+                    .username
+                    .trim()
+                    .eq_ignore_ascii_case(signed.owner.username.trim());
+            let account =
+                !owner.mail_account.is_empty() && owner.mail_account == signed.owner.mail_account;
             return user || account;
         }
     }
@@ -903,7 +995,9 @@ pub async fn jmap_signed_in(
         .read(move |c| {
             let held = accounts::account_by_email(c, &email)?;
             let row = match &held {
-                Some(held) if held.provider == Provider::Jmap => mailrs_store::jmap::load(c, held.id)?,
+                Some(held) if held.provider == Provider::Jmap => {
+                    mailrs_store::jmap::load(c, held.id)?
+                }
                 _ => None,
             };
             Ok((held, row))
@@ -1189,7 +1283,10 @@ mod tests {
     }
 
     fn built_in() -> Option<mailrs_gmail::OAuthClient> {
-        client_from(Some("built.apps.googleusercontent.com"), Some("GOCSPX-built"))
+        client_from(
+            Some("built.apps.googleusercontent.com"),
+            Some("GOCSPX-built"),
+        )
     }
 
     fn with_own() -> Config {
@@ -1283,7 +1380,9 @@ mod tests {
     async fn a_built_in_account_in_a_build_without_the_client_needs_a_new_sign_in() {
         let (_dir, db) = store();
         let built = account(&db, "built@example.com", SignInClient::BuiltIn).await;
-        let client = account_client(&db, &with_own(), None, kept_none(), &built).await.unwrap();
+        let client = account_client(&db, &with_own(), None, kept_none(), &built)
+            .await
+            .unwrap();
         assert!(client.is_none());
         assert_eq!(
             state(&db, "built@example.com").await,
@@ -1294,16 +1393,26 @@ mod tests {
     #[tokio::test]
     async fn a_new_sign_in_records_the_built_in_client_and_its_consent() {
         let (_dir, db) = store();
-        let added = signed_in(&db, "new@example.com", 0, Some("gmail.modify"), "gmail.modify settings", SignInClient::BuiltIn)
-            .await
-            .unwrap();
+        let added = signed_in(
+            &db,
+            "new@example.com",
+            0,
+            Some("gmail.modify"),
+            "gmail.modify settings",
+            SignInClient::BuiltIn,
+        )
+        .await
+        .unwrap();
         let id = added.id;
         let kind = db
             .read(move |c| accounts::sign_in_client(c, id))
             .await
             .unwrap();
         assert_eq!(kind, SignInClient::BuiltIn);
-        let consent = db.read(move |c| mailrs_store::accounts::consent(c, id)).await.unwrap();
+        let consent = db
+            .read(move |c| mailrs_store::accounts::consent(c, id))
+            .await
+            .unwrap();
         assert_eq!(consent.granted.as_deref(), Some("gmail.modify"));
         assert_eq!(consent.asked.as_deref(), Some("gmail.modify settings"));
     }
@@ -1338,23 +1447,46 @@ mod tests {
             .await
             .unwrap();
         let secrets = Secrets::memory();
-        google_signed_in(&db, &secrets, "dana@fastmail.com", "refresh", 0, None, "", Some(&own_client()))
-            .await
-            .expect_err("an IMAP account holds the address");
+        google_signed_in(
+            &db,
+            &secrets,
+            "dana@fastmail.com",
+            "refresh",
+            0,
+            None,
+            "",
+            Some(&own_client()),
+        )
+        .await
+        .expect_err("an IMAP account holds the address");
         assert_eq!(secrets.google.load("dana@fastmail.com").unwrap(), None);
         assert_eq!(secrets.google_clients.load(1).unwrap(), None);
 
-        google_signed_in(&db, &secrets, "dana@gmail.com", "refresh", 0, None, "", None)
-            .await
-            .unwrap();
-        assert_eq!(secrets.google.load("dana@gmail.com").unwrap().as_deref(), Some("refresh"));
+        google_signed_in(
+            &db,
+            &secrets,
+            "dana@gmail.com",
+            "refresh",
+            0,
+            None,
+            "",
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            secrets.google.load("dana@gmail.com").unwrap().as_deref(),
+            Some("refresh")
+        );
     }
 
     #[tokio::test]
     async fn signing_an_own_account_in_again_moves_it_to_the_built_in_client() {
         let (_dir, db) = store();
         let own = account(&db, "own@example.com", SignInClient::Own).await;
-        let again = signed_in(&db, "own@example.com", 0, None, "", SignInClient::BuiltIn).await.unwrap();
+        let again = signed_in(&db, "own@example.com", 0, None, "", SignInClient::BuiltIn)
+            .await
+            .unwrap();
         assert_eq!(again.id, own.id);
         let id = own.id;
         let kind = db
@@ -1369,7 +1501,9 @@ mod tests {
     }
 
     async fn kind(db: &Db, id: mailrs_domain::AccountId) -> SignInClient {
-        db.read(move |c| accounts::sign_in_client(c, id)).await.unwrap()
+        db.read(move |c| accounts::sign_in_client(c, id))
+            .await
+            .unwrap()
     }
 
     fn kept_id(secrets: &Secrets, id: mailrs_domain::AccountId) -> Option<String> {
@@ -1382,12 +1516,27 @@ mod tests {
         let (_dir, db) = store();
         let secrets = Secrets::memory();
         let own = own_client();
-        let added = google_signed_in(&db, &secrets, "me@gmail.com", "refresh", 0, None, "", Some(&own))
-            .await
-            .unwrap();
+        let added = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "refresh",
+            0,
+            None,
+            "",
+            Some(&own),
+        )
+        .await
+        .unwrap();
         assert_eq!(kind(&db, added.id).await, SignInClient::Own);
-        assert_eq!(kept_id(&secrets, added.id).as_deref(), Some("own.apps.googleusercontent.com"));
-        assert_eq!(secrets.google.load("me@gmail.com").unwrap().as_deref(), Some("refresh"));
+        assert_eq!(
+            kept_id(&secrets, added.id).as_deref(),
+            Some("own.apps.googleusercontent.com")
+        );
+        assert_eq!(
+            secrets.google.load("me@gmail.com").unwrap().as_deref(),
+            Some("refresh")
+        );
     }
 
     #[tokio::test]
@@ -1395,12 +1544,30 @@ mod tests {
         let (_dir, db) = store();
         let secrets = Secrets::memory();
         let own = own_client();
-        let first = google_signed_in(&db, &secrets, "me@gmail.com", "refresh", 0, None, "", Some(&own))
-            .await
-            .unwrap();
-        let again = google_signed_in(&db, &secrets, "me@gmail.com", "refresh-2", 1, None, "", None)
-            .await
-            .unwrap();
+        let first = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "refresh",
+            0,
+            None,
+            "",
+            Some(&own),
+        )
+        .await
+        .unwrap();
+        let again = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "refresh-2",
+            1,
+            None,
+            "",
+            None,
+        )
+        .await
+        .unwrap();
         assert_eq!(again.id, first.id);
         assert_eq!(kind(&db, again.id).await, SignInClient::BuiltIn);
         assert_eq!(kept_id(&secrets, again.id), None);
@@ -1412,24 +1579,58 @@ mod tests {
     async fn a_sign_in_whose_own_client_the_keyring_refuses_changes_nothing() {
         let (_dir, db) = store();
         let secrets = Secrets::memory();
-        let first = google_signed_in(&db, &secrets, "me@gmail.com", "refresh", 0, None, "", None).await.unwrap();
-        let crate::passwords::Passwords::Memory(clients) = &*secrets.google_clients else { unreachable!("tests keep secrets in memory") };
+        let first = google_signed_in(&db, &secrets, "me@gmail.com", "refresh", 0, None, "", None)
+            .await
+            .unwrap();
+        let crate::passwords::Passwords::Memory(clients) = &*secrets.google_clients else {
+            unreachable!("tests keep secrets in memory")
+        };
         clients.refuse_saves();
-        let refused = google_signed_in(&db, &secrets, "me@gmail.com", "refresh-2", 1, None, "", Some(&own_client())).await;
+        let refused = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "refresh-2",
+            1,
+            None,
+            "",
+            Some(&own_client()),
+        )
+        .await;
         assert!(matches!(refused, Err(SignInError::Token(_))), "{refused:?}");
         assert_eq!(kind(&db, first.id).await, SignInClient::BuiltIn);
-        assert_eq!(secrets.google.load("me@gmail.com").unwrap().as_deref(), Some("refresh"));
+        assert_eq!(
+            secrets.google.load("me@gmail.com").unwrap().as_deref(),
+            Some("refresh")
+        );
     }
 
     #[tokio::test]
     async fn a_new_account_whose_own_client_the_keyring_refuses_is_not_kept() {
         let (_dir, db) = store();
         let secrets = Secrets::memory();
-        let crate::passwords::Passwords::Memory(clients) = &*secrets.google_clients else { unreachable!("tests keep secrets in memory") };
+        let crate::passwords::Passwords::Memory(clients) = &*secrets.google_clients else {
+            unreachable!("tests keep secrets in memory")
+        };
         clients.refuse_saves();
-        let refused = google_signed_in(&db, &secrets, "me@gmail.com", "refresh", 0, None, "", Some(&own_client())).await;
+        let refused = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "refresh",
+            0,
+            None,
+            "",
+            Some(&own_client()),
+        )
+        .await;
         assert!(refused.is_err());
-        assert!(db.read(|c| accounts::account_by_email(c, "me@gmail.com")).await.unwrap().is_none());
+        assert!(
+            db.read(|c| accounts::account_by_email(c, "me@gmail.com"))
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(secrets.google.load("me@gmail.com").unwrap(), None);
     }
 
@@ -1440,10 +1641,16 @@ mod tests {
         let own = account(&db, "own@example.com", SignInClient::Own).await;
         let kept = own_client::OwnClient::new("kept.apps.googleusercontent.com", "GOCSPX-kept");
         secrets.google_clients.save(own.id, &kept.encode()).unwrap();
-        let client = account_client(&db, &with_own(), built_in(), Arc::clone(&secrets.google_clients), &own)
-            .await
-            .unwrap()
-            .unwrap();
+        let client = account_client(
+            &db,
+            &with_own(),
+            built_in(),
+            Arc::clone(&secrets.google_clients),
+            &own,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(client.id(), "kept.apps.googleusercontent.com");
     }
 
@@ -1452,11 +1659,20 @@ mod tests {
         let (_dir, db) = store();
         let secrets = Secrets::memory();
         let built = account(&db, "built@example.com", SignInClient::BuiltIn).await;
-        secrets.google_clients.save(built.id, &own_client().encode()).unwrap();
-        let client = account_client(&db, &Config::default(), built_in(), Arc::clone(&secrets.google_clients), &built)
-            .await
-            .unwrap()
+        secrets
+            .google_clients
+            .save(built.id, &own_client().encode())
             .unwrap();
+        let client = account_client(
+            &db,
+            &Config::default(),
+            built_in(),
+            Arc::clone(&secrets.google_clients),
+            &built,
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(client.id(), "built.apps.googleusercontent.com");
     }
 
@@ -1470,7 +1686,9 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/token"))
-            .and(body_string_contains("client_id=own.apps.googleusercontent.com"))
+            .and(body_string_contains(
+                "client_id=own.apps.googleusercontent.com",
+            ))
             .and(body_string_contains("client_secret=GOCSPX-own"))
             .and(body_string_contains("refresh_token=rt"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -1482,14 +1700,32 @@ mod tests {
             .await;
         let (_dir, db) = store();
         let secrets = Secrets::memory();
-        let added = google_signed_in(&db, &secrets, "me@gmail.com", "rt", 0, None, "", Some(&own_client()))
-            .await
-            .unwrap();
-        let client = account_client(&db, &Config::default(), None, Arc::clone(&secrets.google_clients), &added)
-            .await
-            .unwrap()
-            .expect("the kept client serves a build without the built-in one")
-            .with_endpoints(format!("{}/auth", server.uri()), format!("{}/token", server.uri()));
+        let added = google_signed_in(
+            &db,
+            &secrets,
+            "me@gmail.com",
+            "rt",
+            0,
+            None,
+            "",
+            Some(&own_client()),
+        )
+        .await
+        .unwrap();
+        let client = account_client(
+            &db,
+            &Config::default(),
+            None,
+            Arc::clone(&secrets.google_clients),
+            &added,
+        )
+        .await
+        .unwrap()
+        .expect("the kept client serves a build without the built-in one")
+        .with_endpoints(
+            format!("{}/auth", server.uri()),
+            format!("{}/token", server.uri()),
+        );
         assert_eq!(client.refresh("rt").await.unwrap().token, "at");
     }
 
@@ -1506,11 +1742,20 @@ mod tests {
     async fn a_microsoft_sign_in_keeps_the_row_the_token_and_the_consent() {
         let (_dir, db) = store();
         let tokens = Arc::new(crate::passwords::MemoryPasswords::default());
-        let account = microsoft_signed_in(&db, Arc::clone(&tokens), new_microsoft("dana@outlook.com"), 0, "openid mail.readwrite")
-            .await
-            .unwrap();
+        let account = microsoft_signed_in(
+            &db,
+            Arc::clone(&tokens),
+            new_microsoft("dana@outlook.com"),
+            0,
+            "openid mail.readwrite",
+        )
+        .await
+        .unwrap();
         assert_eq!(account.provider, mailrs_domain::Provider::Microsoft);
-        assert_eq!(tokens.load(account.id).unwrap().as_deref(), Some("refresh-1"));
+        assert_eq!(
+            tokens.load(account.id).unwrap().as_deref(),
+            Some("refresh-1")
+        );
         let id = account.id;
         let consent = db.read(move |c| accounts::consent(c, id)).await.unwrap();
         assert_eq!(consent.granted.as_deref(), Some("mail.readwrite openid"));
@@ -1520,12 +1765,23 @@ mod tests {
     #[tokio::test]
     async fn a_microsoft_sign_in_for_a_gmail_address_is_refused_and_keeps_no_token() {
         let (_dir, db) = store();
-        db.write(|c| accounts::insert_account(c, "dana@contoso.com", 0)).await.unwrap();
-        let tokens = Arc::new(crate::passwords::MemoryPasswords::default());
-        let refused = microsoft_signed_in(&db, Arc::clone(&tokens), new_microsoft("dana@contoso.com"), 0, "")
+        db.write(|c| accounts::insert_account(c, "dana@contoso.com", 0))
             .await
-            .expect_err("Gmail holds the address");
-        assert_eq!(refused.to_string(), "dana@contoso.com is already in Penguin Mail as a Gmail account.");
+            .unwrap();
+        let tokens = Arc::new(crate::passwords::MemoryPasswords::default());
+        let refused = microsoft_signed_in(
+            &db,
+            Arc::clone(&tokens),
+            new_microsoft("dana@contoso.com"),
+            0,
+            "",
+        )
+        .await
+        .expect_err("Gmail holds the address");
+        assert_eq!(
+            refused.to_string(),
+            "dana@contoso.com is already in Penguin Mail as a Gmail account."
+        );
         assert_eq!(tokens.load(1).unwrap(), None);
     }
 
@@ -1533,13 +1789,26 @@ mod tests {
     async fn signing_a_microsoft_account_in_again_ends_needs_sign_in() {
         let (_dir, db) = store();
         let tokens = Arc::new(crate::passwords::MemoryPasswords::default());
-        let first = microsoft_signed_in(&db, Arc::clone(&tokens), new_microsoft("dana@outlook.com"), 0, "").await.unwrap();
+        let first = microsoft_signed_in(
+            &db,
+            Arc::clone(&tokens),
+            new_microsoft("dana@outlook.com"),
+            0,
+            "",
+        )
+        .await
+        .unwrap();
         let id = first.id;
-        db.write(move |c| accounts::set_state(c, id, AccountState::NeedsReauth)).await.unwrap();
+        db.write(move |c| accounts::set_state(c, id, AccountState::NeedsReauth))
+            .await
+            .unwrap();
         let again = microsoft_signed_in(
             &db,
             Arc::clone(&tokens),
-            NewMicrosoft { refresh_token: "refresh-2".into(), ..new_microsoft("dana@outlook.com") },
+            NewMicrosoft {
+                refresh_token: "refresh-2".into(),
+                ..new_microsoft("dana@outlook.com")
+            },
             1,
             "",
         )

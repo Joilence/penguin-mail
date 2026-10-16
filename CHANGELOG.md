@@ -7,6 +7,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### New
 
+- Hover over a message link or focus it with the keyboard to see its destination. Messages with potentially deceptive links show a warning.
 - Add a calendar from a CalDAV server, such as Nextcloud, without a mail account: Add Account, then Add a calendar without mail. Remove it before going back to Penguin Mail 1.0.8 or older, which cannot open any of your accounts while it is there.
 - Vietnamese translations, chosen in Preferences.
 - The unread count sits on the app icon in Linux docks that draw badges, such as Dash to Dock, Ubuntu Dock, Dash to Panel and KDE Plasma, matching the tray.
@@ -20,6 +21,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
+- Rate-limit errors name the account's provider when it is known. Draft dialogs say whether the draft stays in the account or on this computer, and report when the account is not connected.
 - The snap's panel unread count updates without requiring developer mode.
 - The Snap package finds libproxy's backend when it starts, avoiding the missing libpxbackend-1.0.so error.
 - A new-mail notification leaves the notification center once its message is read, archived or deleted, in the window or on another device. A summary of several messages leaves once every one of them has.

@@ -46,6 +46,7 @@ use crate::templates::{self, Filling};
 use crate::web::WebView;
 use mailrs_domain::Address;
 use mailrs_domain::translate::{fill, fill_plural, gettext, with_reason};
+use mailrs_sync::MailBackend;
 
 pub use crate::compose::Identity;
 
@@ -2075,12 +2076,24 @@ impl Composer {
         });
     }
 
+    /// Where this draft lives if the writer saves it. POP3 mail stays on
+    /// this computer. An unavailable account cannot save a draft.
+    fn draft_kept_line(&self) -> String {
+        let Some(identity) = self.identity() else {
+            return gettext("That account is not connected.");
+        };
+        let Some(sync) = self.core.account(identity.account_id) else {
+            return gettext("That account is not connected.");
+        };
+        let mail = &sync.services().mail;
+        let provider = mailrs_discover::resolved_provider_name(mail.provider_name());
+        draft_kept(Some(&provider), mail.capabilities().local_mailboxes)
+    }
+
     fn confirm_close(self: &Rc<Self>) {
         let dialog = adw::AlertDialog::new(
             Some(&gettext("Save as Draft?")),
-            Some(&gettext(
-                "The draft is kept in Gmail, so you can finish it later on any device.",
-            )),
+            Some(&self.draft_kept_line()),
         );
         dialog.add_responses(&[
             ("discard", &gettext("Discard")),
@@ -3076,6 +3089,22 @@ fn block_of(name: &str) -> BlockKind {
     }
 }
 
+/// Where closing the composer says the draft is kept.
+fn draft_kept(provider: Option<&str>, local: bool) -> String {
+    if local {
+        return gettext("The draft is kept on this computer, so you can finish it later here.");
+    }
+    match provider.filter(|name| !name.is_empty()) {
+        Some(provider) => fill(
+            &gettext("The draft is kept in {provider}, so you can finish it later on any device."),
+            &[("provider", provider)],
+        ),
+        None => {
+            gettext("The draft is kept in your account, so you can finish it later on any device.")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3183,6 +3212,21 @@ mod tests {
             "the list is the same"
         );
         assert_ne!(to_only, now_blind, "and the question still has to be asked");
+    }
+
+    #[test]
+    fn a_saved_draft_names_the_account_that_keeps_it() {
+        assert_eq!(
+            draft_kept(Some("Fastmail"), false),
+            "The draft is kept in Fastmail, so you can finish it later on any device."
+        );
+        let here = draft_kept(Some("Gmail"), true);
+        assert!(here.contains("this computer"), "{here}");
+        assert!(!here.contains("any device"), "{here}");
+        let unnamed = draft_kept(None, false);
+        assert!(!unnamed.contains("Gmail"), "{unnamed}");
+        assert!(unnamed.contains("your account"), "{unnamed}");
+        assert!(!unnamed.contains("this computer"), "{unnamed}");
     }
 
     #[test]

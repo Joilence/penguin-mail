@@ -2,8 +2,8 @@
 //! when the dialog closes, so the engine restarts once.
 
 mod accounts;
-pub(crate) mod space;
 pub(crate) mod dialog;
+pub(crate) mod space;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -63,8 +63,11 @@ pub fn present(
     // A calendar account belongs on the Calendar page alone: the other
     // pages that list accounts are about mail and contacts, which it has
     // neither of.
-    let with_mail: Vec<(Account, Offers)> =
-        offered.iter().filter(|(account, _)| account.provider.serves_mail()).cloned().collect();
+    let with_mail: Vec<(Account, Offers)> = offered
+        .iter()
+        .filter(|(account, _)| account.provider.serves_mail())
+        .cloned()
+        .collect();
     let mail_accounts = mailrs_domain::mail_accounts(accounts);
     let dialog = dialog::Dialog::new();
     // The phone layout. A dialog applies one breakpoint at a time, so
@@ -83,7 +86,12 @@ pub fn present(
     );
     dialog.add(&accounts_page);
     dialog.add(&reading_page(app, &settings));
-    dialog.add(&writing_page(app, &settings, &mail_accounts, &dialog.toasts));
+    dialog.add(&writing_page(
+        app,
+        &settings,
+        &mail_accounts,
+        &dialog.toasts,
+    ));
     dialog.add(&notifications_page(app, &settings));
     dialog.add(&super::contacts_prefs::calendar_page(
         app,
@@ -271,12 +279,14 @@ fn notifications_page(app: &Rc<App>, settings: &Settings) -> adw::PreferencesPag
         .bind_property("active", &vips_only, "sensitive")
         .sync_create()
         .build();
-    let actions = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(gettext("Buttons"))
-        .subtitle(gettext(
-            "What a notification offers besides opening the conversation",
-        ))
-        .build());
+    let actions = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(gettext("Buttons"))
+            .subtitle(gettext(
+                "What a notification offers besides opening the conversation",
+            ))
+            .build(),
+    );
     actions.add_css_class("preference-explanation");
     for button in crate::notify::Button::ALL {
         actions.add_row(&switch(
@@ -356,12 +366,14 @@ fn accounts_page(
         let expanded = focus.map_or(index == 0, |focus| {
             focus.account().eq_ignore_ascii_case(&account.email)
         });
-        let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-            .use_markup(false)
-            .title(&account.email)
-            .subtitle(preview(settings.signature(&account.email)))
-            .expanded(expanded)
-            .build());
+        let row = crate::ui::disclosure::row(
+            adw::ExpanderRow::builder()
+                .use_markup(false)
+                .title(&account.email)
+                .subtitle(preview(settings.signature(&account.email)))
+                .expanded(expanded)
+                .build(),
+        );
         row.add_row(&signature_row(
             app,
             &settings,
@@ -385,7 +397,12 @@ fn accounts_page(
         } else {
             gettext("The server has not reported its storage usage.")
         };
-        let (space_row, update) = space::Row::new(&gettext("Space on the Server"), storage.get(&account.id).copied(), &unavailable, narrow);
+        let (space_row, update) = space::Row::new(
+            &gettext("Space on the Server"),
+            storage.get(&account.id).copied(),
+            &unavailable,
+            narrow,
+        );
         row.add_row(&space_row);
         space_rows.push((account.id, update));
         if let Some((_, reasons)) = missing.iter().find(|(email, _)| email == &account.email) {
@@ -424,7 +441,9 @@ fn accounts_page(
         };
         let found = app.storage();
         if found != previous {
-            for (id, row) in &space_rows { row.update(found.get(id).copied()); }
+            for (id, row) in &space_rows {
+                row.update(found.get(id).copied());
+            }
             previous = found;
         }
         glib::ControlFlow::Continue
@@ -444,12 +463,14 @@ fn signature_row(
     let text = settings.signature(&account.email).to_string();
     // The subtitle is the signature's first line, which may hold "&"
     // or a Markdown link in angle brackets.
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .use_markup(false)
-        .title(gettext("Signature"))
-        .subtitle(preview(&text))
-        .expanded(expanded)
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .use_markup(false)
+            .title(gettext("Signature"))
+            .subtitle(preview(&text))
+            .expanded(expanded)
+            .build(),
+    );
     let view = gtk::TextView::builder()
         .wrap_mode(gtk::WrapMode::WordChar)
         .top_margin(10)
@@ -1070,10 +1091,12 @@ fn state_line(storage: mailrs_sync::Storage) -> String {
 /// list. The rows fill in once the store answers, so opening Preferences
 /// never waits on it.
 fn allowed_image_senders(app: &Rc<App>) -> adw::ExpanderRow {
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(gettext("Senders Who May Load Images"))
-        .subtitle(gettext("Nobody yet"))
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(gettext("Senders Who May Load Images"))
+            .subtitle(gettext("Nobody yet"))
+            .build(),
+    );
     let (app, shown) = (Rc::clone(app), row.clone());
     glib::spawn_future_local(async move {
         let Ok(list) = app.core.read(mailrs_store::image_senders::list).await else {
@@ -1273,10 +1296,12 @@ fn week_start_row(app: &Rc<App>, week_start: WeekStart) -> adw::ComboRow {
 /// The "Working Hours" row: an expander with the current hours and days
 /// in words, and an "Hours" and a "Days" row under it to change them.
 fn working_hours_row(app: &Rc<App>, hours: WorkingHours) -> adw::ExpanderRow {
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(gettext("Working Hours"))
-        .subtitle(working_hours_words(&hours))
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(gettext("Working Hours"))
+            .subtitle(working_hours_words(&hours))
+            .build(),
+    );
 
     let stored = Rc::new(Cell::new(hours));
     let weak_row = row.downgrade();
@@ -1424,12 +1449,14 @@ fn switch_with(
 /// The languages whose messages get no offer to translate them, a switch
 /// each, in the order their names sort in.
 fn never_translate_row(app: &Rc<App>, settings: &Settings) -> adw::ExpanderRow {
-    let row = crate::ui::disclosure::row(adw::ExpanderRow::builder()
-        .title(gettext("Never Translate"))
-        .subtitle(gettext(
-            "Messages in these languages get no offer to translate them",
-        ))
-        .build());
+    let row = crate::ui::disclosure::row(
+        adw::ExpanderRow::builder()
+            .title(gettext("Never Translate"))
+            .subtitle(gettext(
+                "Messages in these languages get no offer to translate them",
+            ))
+            .build(),
+    );
     row.add_css_class("preference-explanation");
     row.set_tooltip_text(Some(row.subtitle().as_str()));
     let mut languages: Vec<_> = crate::translation::named_languages().collect();

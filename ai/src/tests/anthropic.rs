@@ -509,7 +509,12 @@ fn only_models_that_take_a_format_are_sent_one() {
     ] {
         assert!(takes_format(model), "{model}");
     }
-    for model in ["claude-sonnet-4-6", "claude-opus-4-7", "claude-3-7-sonnet-20250219", "gemma-3"] {
+    for model in [
+        "claude-sonnet-4-6",
+        "claude-opus-4-7",
+        "claude-3-7-sonnet-20250219",
+        "gemma-3",
+    ] {
         assert!(!takes_format(model), "{model}");
     }
 }

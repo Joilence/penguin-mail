@@ -167,7 +167,6 @@ const LOOK_AROUND: EpochMillis = 400 * 24 * 60 * 60 * 1_000;
 /// means a meeting, not a day.
 const ASSUMED_LENGTH: EpochMillis = 60 * 60 * 1_000;
 
-
 pub struct Invitations<A: Accounts> {
     accounts: Arc<A>,
     db: Db,
@@ -177,11 +176,7 @@ pub struct Invitations<A: Accounts> {
 
 impl<A: Accounts> Invitations<A> {
     pub fn new(accounts: Arc<A>, db: Db, copy: Arc<CalendarCopy<A>>) -> Self {
-        Invitations {
-            accounts,
-            db,
-            copy,
-        }
+        Invitations { accounts, db, copy }
     }
 
     /// What else the user has on while this event runs, by title, from
@@ -303,12 +298,15 @@ impl<A: Accounts> Invitations<A> {
         if !services.offers().calendar {
             return Ok(None);
         }
-        Ok(self.found_on_copy(account_id, invitation, now, Near::Nearest).await?.map(|o| Spot {
-            account_id,
-            calendar: o.event.calendar.clone(),
-            id: o.event.id.clone(),
-            start: o.start,
-        }))
+        Ok(self
+            .found_on_copy(account_id, invitation, now, Near::Nearest)
+            .await?
+            .map(|o| Spot {
+                account_id,
+                calendar: o.event.calendar.clone(),
+                id: o.event.id.clone(),
+                start: o.start,
+            }))
     }
 
     /// The occurrence of the invitation's event the copy holds: the one
@@ -339,7 +337,13 @@ impl<A: Accounts> Invitations<A> {
                 if !mailrs_store::calendar::synced(c, account_id)? {
                     return Ok(Vec::new());
                 }
-                mailrs_store::calendar::with_uid(c, account_id, &uid, around - LOOK_AROUND, around + LOOK_AROUND)
+                mailrs_store::calendar::with_uid(
+                    c,
+                    account_id,
+                    &uid,
+                    around - LOOK_AROUND,
+                    around + LOOK_AROUND,
+                )
             })
             .await?;
         Ok(pick(found, occurrence, from, near))
@@ -368,7 +372,8 @@ impl<A: Accounts> Invitations<A> {
                 let found = calendar_store::waiting(c, &accounts, now, MOST_WAITING)?;
                 let mut waiting = Vec::with_capacity(found.len());
                 for occurrence in found {
-                    let thread_id = mail_thread_of(c, occurrence.account_id, &occurrence.event.uid)?;
+                    let thread_id =
+                        mail_thread_of(c, occurrence.account_id, &occurrence.event.uid)?;
                     waiting.push(Waiting {
                         account_id: occurrence.account_id,
                         calendar: occurrence.event.calendar.clone(),
@@ -387,9 +392,16 @@ impl<A: Accounts> Invitations<A> {
     /// The thread of the mail an event's invitation arrived in, found by
     /// the event's uid, for "Open the invitation in Mail". `None` when no
     /// mail brought it, or the mail has left the store.
-    pub async fn mail_thread(&self, account_id: AccountId, uid: &str) -> Result<Option<String>, SyncError> {
+    pub async fn mail_thread(
+        &self,
+        account_id: AccountId,
+        uid: &str,
+    ) -> Result<Option<String>, SyncError> {
         let uid = uid.to_string();
-        Ok(self.db.read(move |c| mail_thread_of(c, account_id, &uid)).await?)
+        Ok(self
+            .db
+            .read(move |c| mail_thread_of(c, account_id, &uid))
+            .await?)
     }
 
     /// Reads the `text/calendar` part of a message, records the version of
@@ -462,7 +474,10 @@ impl<A: Accounts> Invitations<A> {
     /// disagree about how an answer goes out; the caller sends the queue.
     /// An event the copy lacks is answered by mail to the organizer. The
     /// answer says which of the two happened.
-    #[expect(clippy::too_many_arguments, reason = "each is part of what the organizer is told")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is part of what the organizer is told"
+    )]
     pub async fn answer(
         &self,
         account_id: AccountId,
@@ -495,7 +510,10 @@ impl<A: Accounts> Invitations<A> {
                 RepeatScope::This => Near::Exact,
                 _ => Near::Nearest,
             };
-            match self.held_on_calendar(account_id, invitation, now, near).await? {
+            match self
+                .held_on_calendar(account_id, invitation, now, near)
+                .await?
+            {
                 Held::On(found) => {
                     self.queue_answer(account_id, &found, reach, answer, note, me.email.clone())
                         .await?;
@@ -561,7 +579,8 @@ impl<A: Accounts> Invitations<A> {
             .find(|guest| guest.me)
             .map(|guest| guest.email.clone())
             .unwrap_or_default();
-        self.queue_answer(account_id, occurrence, scope, answer, note, me).await?;
+        self.queue_answer(account_id, occurrence, scope, answer, note, me)
+            .await?;
         Ok(Permitted::Done(()))
     }
 
@@ -587,14 +606,22 @@ impl<A: Accounts> Invitations<A> {
         self.db
             .write(move |c| {
                 let row = answered_row(c, account_id, &event, picked, scope, answer)?;
-                let row = Event { pending: true, ..row };
+                let row = Event {
+                    pending: true,
+                    ..row
+                };
                 calendar_store::save_events(c, account_id, std::slice::from_ref(&row), now)?;
                 // The series answers for every occurrence, the changed
                 // ones stored apart from it included.
                 if row.series.is_none() {
                     calendar_store::set_my_answer(c, account_id, &row.calendar, &row.id, answer)?;
                 }
-                let queued = calendar_store::QueuedAnswer { me, answer, note, title: row.title.clone() };
+                let queued = calendar_store::QueuedAnswer {
+                    me,
+                    answer,
+                    note,
+                    title: row.title.clone(),
+                };
                 calendar_store::enqueue_answer(c, account_id, &row.calendar, &row.id, &queued)?;
                 store::answer(c, account_id, &row.uid, answer)
             })
@@ -626,15 +653,26 @@ impl<A: Accounts> Invitations<A> {
         match self.copy.ready(account_id, now).await {
             Ok(Permitted::Done(())) => {}
             Ok(Permitted::NeedsPermission) => return Ok(Held::NeedsPermission),
-            Err(SyncError::Backend(BackendError::ApiDisabled { service, enable_url })) => {
-                return Ok(Held::ApiOff(ApiOff { service, enable_url }));
+            Err(SyncError::Backend(BackendError::ApiDisabled {
+                service,
+                enable_url,
+            })) => {
+                return Ok(Held::ApiOff(ApiOff {
+                    service,
+                    enable_url,
+                }));
             }
             Err(err) => return Err(err),
         }
-        Ok(match self.found_on_copy(account_id, invitation, now, near).await? {
-            Some(found) => Held::On(found),
-            None => Held::Missing,
-        })
+        Ok(
+            match self
+                .found_on_copy(account_id, invitation, now, near)
+                .await?
+            {
+                Some(found) => Held::On(found),
+                None => Held::Missing,
+            },
+        )
     }
 
     /// Answers the invitation in message `message_id` as the account
@@ -712,8 +750,14 @@ impl<A: Accounts> Invitations<A> {
             .guests
             .iter()
             .find(|guest| guest.me)
-            .map(|guest| Address { name: guest.name.clone(), email: guest.email.clone() })
-            .unwrap_or(Address { name: None, email: String::new() });
+            .map(|guest| Address {
+                name: guest.name.clone(),
+                email: guest.email.clone(),
+            })
+            .unwrap_or(Address {
+                name: None,
+                email: String::new(),
+            });
         let scope = match invitation.occurrence {
             Some(_) => Scope::Occurrence,
             None => Scope::Series,
@@ -754,7 +798,10 @@ impl<A: Accounts> Invitations<A> {
 
     /// Mails the organizer the reply. An invitation that names no
     /// organizer has nobody to send it to, and says so.
-    #[expect(clippy::too_many_arguments, reason = "each is part of what the organizer is told")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is part of what the organizer is told"
+    )]
     async fn mail_reply(
         &self,
         sync: &AccountSync,
@@ -803,10 +850,16 @@ enum Near {
 /// invitation to one occurrence, the one that replaced it or starts at it,
 /// else the nearest when `near` allows it; otherwise the first that has
 /// not ended by `from`, or the last one when every occurrence has.
-fn pick(found: Vec<Occurrence>, occurrence: Option<EpochMillis>, from: EpochMillis, near: Near) -> Option<Occurrence> {
+fn pick(
+    found: Vec<Occurrence>,
+    occurrence: Option<EpochMillis>,
+    from: EpochMillis,
+    near: Near,
+) -> Option<Occurrence> {
     if let Some(at) = occurrence {
         let exact = found.iter().position(|o| {
-            o.event.original_start == Some(at) || (o.event.original_start.is_none() && o.start == at)
+            o.event.original_start == Some(at)
+                || (o.event.original_start.is_none() && o.start == at)
         });
         return match exact {
             Some(index) => found.into_iter().nth(index),
@@ -890,11 +943,23 @@ fn answered_row(
     answer: Answer,
 ) -> mailrs_store::Result<Event> {
     if !series::in_series(event) {
-        return Ok(series::answered(event, &[], picked, RepeatScope::All, answer));
+        return Ok(series::answered(
+            event,
+            &[],
+            picked,
+            RepeatScope::All,
+            answer,
+        ));
     }
     let series_id = event.series.clone().unwrap_or_else(|| event.id.clone());
     let Some(whole) = calendar_store::event(c, account_id, &event.calendar, &series_id)? else {
-        return Ok(series::answered(event, &[], picked, RepeatScope::All, answer));
+        return Ok(series::answered(
+            event,
+            &[],
+            picked,
+            RepeatScope::All,
+            answer,
+        ));
     };
     let changed = calendar_store::changed_occurrences(c, account_id, &event.calendar, &series_id)?;
     Ok(series::answered(&whole, &changed, picked, scope, answer))
@@ -910,5 +975,7 @@ fn mail_thread_of(
     let Some(saved) = store::saved(c, account_id, uid)? else {
         return Ok(None);
     };
-    Ok(messages::thread_id_of(c, account_id, &saved.message_id).ok().flatten())
+    Ok(messages::thread_id_of(c, account_id, &saved.message_id)
+        .ok()
+        .flatten())
 }

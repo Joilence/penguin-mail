@@ -14,8 +14,8 @@ use mailrs_domain::{FlagColor, Folder, MailSet, Role, Target, ThreadSummary};
 use mailrs_sync::{History, MailAction, Outcome, TriageAction};
 
 use super::MainWindow;
-use crate::ui::{Mailbox, Standard};
 use crate::ui::conversation::ConversationView;
+use crate::ui::{Mailbox, Standard};
 
 /// What changed the mail.
 #[derive(Debug, Clone, Copy)]
@@ -531,25 +531,42 @@ mod tests {
             label_id: "Work".into(),
             name: "Work".into(),
         };
-        let relabel = |add: Vec<MailSet>, remove: Vec<MailSet>| {
-            triage(TriageAction::Relabel { add, remove })
-        };
+        let relabel =
+            |add: Vec<MailSet>, remove: Vec<MailSet>| triage(TriageAction::Relabel { add, remove });
         let named = |id: &str| MailSet::Mailbox(id.into());
         let in_inbox = || MailSet::Role(Role::Inbox);
         // Filed from Work into Travel: gone from Work.
-        assert!(leaves(&relabel(vec![named("Travel")], vec![named("Work")]), &work));
-        assert!(leaves(&relabel(vec![named("Travel")], vec![in_inbox()]), &inbox()));
-        assert!(!leaves(&relabel(vec![named("Travel")], vec![named("Work")]), &inbox()));
+        assert!(leaves(
+            &relabel(vec![named("Travel")], vec![named("Work")]),
+            &work
+        ));
+        assert!(leaves(
+            &relabel(vec![named("Travel")], vec![in_inbox()]),
+            &inbox()
+        ));
+        assert!(!leaves(
+            &relabel(vec![named("Travel")], vec![named("Work")]),
+            &inbox()
+        ));
         // Out of Work into All Mail.
-        assert!(leaves(&triage(TriageAction::RemoveLabel("Work".into())), &work));
-        assert!(!leaves(&triage(TriageAction::RemoveLabel("Work".into())), &inbox()));
+        assert!(leaves(
+            &triage(TriageAction::RemoveLabel("Work".into())),
+            &work
+        ));
+        assert!(!leaves(
+            &triage(TriageAction::RemoveLabel("Work".into())),
+            &inbox()
+        ));
         // Moved into the Work folder: gone from every list but Work's.
         let move_to = |id: &str| triage(TriageAction::MoveTo(id.into()));
         assert!(leaves(&move_to("Work"), &inbox()));
         assert!(leaves(&move_to("Travel"), &work));
         assert!(!leaves(&move_to("Work"), &work));
         // Flagged and a search list mail wherever it sits.
-        assert!(!leaves(&move_to("Work"), &Mailbox::Unified(Standard::Flagged)));
+        assert!(!leaves(
+            &move_to("Work"),
+            &Mailbox::Unified(Standard::Flagged)
+        ));
         let search = Mailbox::Search {
             query: "kites".into(),
             account_id: None,
@@ -557,7 +574,10 @@ mod tests {
         assert!(!leaves(&move_to("Work"), &search));
         // Sent and Starred keep mail that only gained a label.
         let sent = Mailbox::Unified(Standard::Sent);
-        assert!(!leaves(&triage(TriageAction::AddLabel("Travel".into())), &sent));
+        assert!(!leaves(
+            &triage(TriageAction::AddLabel("Travel".into())),
+            &sent
+        ));
         assert!(!leaves(&relabel(vec![in_inbox()], vec![]), &sent));
         // Back into the inbox from the Archive, and out of Junk.
         let archive = folder(Folder::Archive);

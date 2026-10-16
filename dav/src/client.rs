@@ -30,14 +30,19 @@ pub struct Login {
 
 impl Login {
     pub fn new(user: impl Into<String>, password: impl Into<String>) -> Login {
-        Login { user: user.into(), password: password.into() }
+        Login {
+            user: user.into(),
+            password: password.into(),
+        }
     }
 }
 
 // The password never reaches a log line.
 impl std::fmt::Debug for Login {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Login").field("user", &self.user).finish_non_exhaustive()
+        f.debug_struct("Login")
+            .field("user", &self.user)
+            .finish_non_exhaustive()
     }
 }
 
@@ -107,26 +112,64 @@ pub enum Precondition {
 /// hrefs are the server's own, as it wrote them.
 pub trait DavApi: Send + Sync + 'static {
     fn homes(&self) -> impl Future<Output = Result<Homes, DavError>> + Send;
-    fn collections(&self, home: &str, kind: Kind) -> impl Future<Output = Result<Vec<Collection>, DavError>> + Send;
-    fn state(&self, collection: &str) -> impl Future<Output = Result<CollectionState, DavError>> + Send;
+    fn collections(
+        &self,
+        home: &str,
+        kind: Kind,
+    ) -> impl Future<Output = Result<Vec<Collection>, DavError>> + Send;
+    fn state(
+        &self,
+        collection: &str,
+    ) -> impl Future<Output = Result<CollectionState, DavError>> + Send;
     /// What changed since `token`; an empty token lists every member.
-    fn sync(&self, collection: &str, token: &str) -> impl Future<Output = Result<Synced, DavError>> + Send;
+    fn sync(
+        &self,
+        collection: &str,
+        token: &str,
+    ) -> impl Future<Output = Result<Synced, DavError>> + Send;
     /// Every member's etag; for a calendar, only the events overlapping
     /// the range (`i64::MAX` as its end leaves the end open).
-    fn members(&self, collection: &str, kind: Kind, range: Option<(EpochMillis, EpochMillis)>) -> impl Future<Output = Result<Vec<Member>, DavError>> + Send;
+    fn members(
+        &self,
+        collection: &str,
+        kind: Kind,
+        range: Option<(EpochMillis, EpochMillis)>,
+    ) -> impl Future<Output = Result<Vec<Member>, DavError>> + Send;
     /// Up to [`MULTIGET_BATCH`] members with their data; one gone is left out.
-    fn fetch(&self, collection: &str, kind: Kind, hrefs: &[String]) -> impl Future<Output = Result<Vec<Fetched>, DavError>> + Send;
+    fn fetch(
+        &self,
+        collection: &str,
+        kind: Kind,
+        hrefs: &[String],
+    ) -> impl Future<Output = Result<Vec<Fetched>, DavError>> + Send;
     fn get(&self, href: &str) -> impl Future<Output = Result<Fetched, DavError>> + Send;
-    fn put(&self, href: &str, body: &str, kind: Kind, when: Precondition) -> impl Future<Output = Result<Option<String>, DavError>> + Send;
-    fn delete(&self, href: &str, etag: Option<&str>) -> impl Future<Output = Result<(), DavError>> + Send;
-    fn find_uid(&self, collection: &str, uid: &str) -> impl Future<Output = Result<Option<Fetched>, DavError>> + Send;
+    fn put(
+        &self,
+        href: &str,
+        body: &str,
+        kind: Kind,
+        when: Precondition,
+    ) -> impl Future<Output = Result<Option<String>, DavError>> + Send;
+    fn delete(
+        &self,
+        href: &str,
+        etag: Option<&str>,
+    ) -> impl Future<Output = Result<(), DavError>> + Send;
+    fn find_uid(
+        &self,
+        collection: &str,
+        uid: &str,
+    ) -> impl Future<Output = Result<Option<Fetched>, DavError>> + Send;
     /// Whether the `DAV:` header answered at `at` lists
     /// `calendar-auto-schedule`, which means the server mails the
     /// organizer's reply itself when a PUT changes an attendee's PARTSTAT.
     /// `None` asks at the server's own address. RFC 6638 has a server say
     /// so on what takes part in scheduling, a calendar among them, and
     /// Nextcloud says it there and not at its address.
-    fn auto_schedule(&self, at: Option<&str>) -> impl Future<Output = Result<bool, DavError>> + Send;
+    fn auto_schedule(
+        &self,
+        at: Option<&str>,
+    ) -> impl Future<Output = Result<bool, DavError>> + Send;
     fn host(&self) -> &str;
 }
 
@@ -137,7 +180,12 @@ pub fn same_site(host: &str, other: &str) -> bool {
     // The Public Suffix List reads an IP address as a domain name, so
     // 192.0.2.10 and 198.51.2.10 would both be "2.10". An address is a
     // site of its own.
-    let is_ip = |h: &str| h.trim_start_matches('[').trim_end_matches(']').parse::<std::net::IpAddr>().is_ok();
+    let is_ip = |h: &str| {
+        h.trim_start_matches('[')
+            .trim_end_matches(']')
+            .parse::<std::net::IpAddr>()
+            .is_ok()
+    };
     if is_ip(host) || is_ip(other) {
         return host.eq_ignore_ascii_case(other);
     }
@@ -150,7 +198,10 @@ pub fn same_site(host: &str, other: &str) -> bool {
 /// The host a server address names, in lower case, without the port or
 /// a user name written into it. `None` for text that is no such address.
 pub fn host_of(url: &str) -> Option<String> {
-    Url::parse(url).ok()?.host_str().map(str::to_ascii_lowercase)
+    Url::parse(url)
+        .ok()?
+        .host_str()
+        .map(str::to_ascii_lowercase)
 }
 
 /// Whether two addresses name one server: the same scheme, host and port,
@@ -161,7 +212,12 @@ pub fn same_address(a: &str, b: &str) -> bool {
     let server = |address: &str| {
         let url = Url::parse(address).ok()?;
         let path = url.path().trim_end_matches('/').to_string();
-        Some((url.scheme().to_string(), url.host_str()?.to_ascii_lowercase(), url.port_or_known_default(), path))
+        Some((
+            url.scheme().to_string(),
+            url.host_str()?.to_ascii_lowercase(),
+            url.port_or_known_default(),
+            path,
+        ))
     };
     matches!((server(a), server(b)), (Some(a), Some(b)) if a == b)
 }
@@ -170,7 +226,11 @@ pub fn same_address(a: &str, b: &str) -> bool {
 /// reads it. An address that does not parse, or has no host, shares
 /// nothing.
 pub fn shares_site(a: &str, b: &str) -> bool {
-    let host = |address: &str| Url::parse(address).ok().and_then(|u| u.host_str().map(str::to_string));
+    let host = |address: &str| {
+        Url::parse(address)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+    };
     match (host(a), host(b)) {
         (Some(a), Some(b)) => same_site(&a, &b),
         _ => false,
@@ -182,7 +242,10 @@ pub fn shares_site(a: &str, b: &str) -> bool {
 /// hands back another one, refreshing only when it still holds that one,
 /// so calls refused together share one refresh.
 pub trait TokenSource: Send + Sync {
-    fn token<'a>(&'a self, refused: Option<&'a str>) -> std::pin::Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>>;
+    fn token<'a>(
+        &'a self,
+        refused: Option<&'a str>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>>;
 
     /// The server refused the token handed out after a refusal too, so a
     /// fresh token does not help here. The source can stop handing out
@@ -229,9 +292,17 @@ impl DavClient {
     pub fn new(context: &str, kind: Kind, login: Login) -> Result<DavClient, DavError> {
         let base = Url::parse(context).map_err(|err| DavError::Parse(err.to_string()))?;
         if base.scheme() != "https" {
-            return Err(DavError::Forbidden("Penguin Mail reaches calendar and contact servers over HTTPS only".into()));
+            return Err(DavError::Forbidden(
+                "Penguin Mail reaches calendar and contact servers over HTTPS only".into(),
+            ));
         }
-        Ok(DavClient { base, kind, login, bearer: None, http: http_client(true)? })
+        Ok(DavClient {
+            base,
+            kind,
+            login,
+            bearer: None,
+            http: http_client(true)?,
+        })
     }
 
     /// A client with no https check, for tests against a local mock
@@ -239,7 +310,13 @@ impl DavClient {
     /// hand as `new` does and a test exercises the real credential rule.
     #[cfg(any(test, feature = "fake"))]
     pub fn over(base: Url, kind: Kind, login: Login) -> Result<DavClient, DavError> {
-        Ok(DavClient { base, kind, login, bearer: None, http: http_client(false)? })
+        Ok(DavClient {
+            base,
+            kind,
+            login,
+            bearer: None,
+            http: http_client(false)?,
+        })
     }
 
     /// Signs in with tokens from `source` in place of the password.
@@ -261,7 +338,10 @@ impl DavClient {
                 let token = source.token(refused).await.map_err(DavError::Network)?;
                 Ok((request.bearer_auth(&token), Some(token)))
             }
-            None => Ok((request.basic_auth(&self.login.user, Some(&self.login.password)), None)),
+            None => Ok((
+                request.basic_auth(&self.login.user, Some(&self.login.password)),
+                None,
+            )),
         }
     }
 
@@ -275,11 +355,21 @@ impl DavClient {
     fn url(&self, href: &str) -> Result<Url, DavError> {
         // The path is encoded here, once, from its canonical form: `join`
         // alone would leave a stray `?` or `#` to start a query.
-        self.base.join(&wire_href(href)).map_err(|err| DavError::Parse(err.to_string()))
+        self.base
+            .join(&wire_href(href))
+            .map_err(|err| DavError::Parse(err.to_string()))
     }
 
-    async fn send(&self, method: &str, href: &str, depth: Option<&str>, body: Option<String>, headers: &[(&str, String)]) -> Result<Answer, DavError> {
-        let method = Method::from_bytes(method.as_bytes()).map_err(|err| DavError::Parse(err.to_string()))?;
+    async fn send(
+        &self,
+        method: &str,
+        href: &str,
+        depth: Option<&str>,
+        body: Option<String>,
+        headers: &[(&str, String)],
+    ) -> Result<Answer, DavError> {
+        let method = Method::from_bytes(method.as_bytes())
+            .map_err(|err| DavError::Parse(err.to_string()))?;
         let mut url = self.url(href)?;
         let home = self.base.host_str().unwrap_or_default().to_string();
         // The token a 401 refused, once: a second refusal stands.
@@ -298,12 +388,19 @@ impl DavClient {
                 request = request.header(*name, value);
             }
             if let Some(body) = &body {
-                request = request.header("Content-Type", "application/xml; charset=utf-8").body(body.clone());
+                request = request
+                    .header("Content-Type", "application/xml; charset=utf-8")
+                    .body(body.clone());
             }
-            let mut response = request.send().await.map_err(|err| DavError::Network(err.to_string()))?;
+            let mut response = request
+                .send()
+                .await
+                .map_err(|err| DavError::Network(err.to_string()))?;
             let status = response.status();
             // A bearer token may have expired: ask for a fresh one, once.
-            if status == StatusCode::UNAUTHORIZED && trusted && refused.is_none()
+            if status == StatusCode::UNAUTHORIZED
+                && trusted
+                && refused.is_none()
                 && let Some(token) = sent.take()
             {
                 refused = Some(token);
@@ -313,14 +410,31 @@ impl DavClient {
                 self.refused_again();
             }
             if status.is_redirection() {
-                let Some(next) = response.headers().get("Location").and_then(|l| l.to_str().ok()) else {
-                    return Err(DavError::Http { status: status.as_u16(), detail: "a redirect with nowhere to go".into() });
+                let Some(next) = response
+                    .headers()
+                    .get("Location")
+                    .and_then(|l| l.to_str().ok())
+                else {
+                    return Err(DavError::Http {
+                        status: status.as_u16(),
+                        detail: "a redirect with nowhere to go".into(),
+                    });
                 };
-                url = url.join(next).map_err(|err| DavError::Parse(err.to_string()))?;
+                url = url
+                    .join(next)
+                    .map_err(|err| DavError::Parse(err.to_string()))?;
                 continue;
             }
-            let etag = response.headers().get("ETag").and_then(|e| e.to_str().ok()).map(str::to_string);
-            let dav = response.headers().get("DAV").and_then(|d| d.to_str().ok()).map(str::to_string);
+            let etag = response
+                .headers()
+                .get("ETag")
+                .and_then(|e| e.to_str().ok())
+                .map(str::to_string);
+            let dav = response
+                .headers()
+                .get("DAV")
+                .and_then(|d| d.to_str().ok())
+                .map(str::to_string);
             let retry_after = response
                 .headers()
                 .get("Retry-After")
@@ -328,20 +442,42 @@ impl DavClient {
                 .and_then(|r| r.parse().ok())
                 .map(Duration::from_secs);
             let mut bytes = Vec::new();
-            while let Some(chunk) = response.chunk().await.map_err(|err| DavError::Network(err.to_string()))? {
+            while let Some(chunk) = response
+                .chunk()
+                .await
+                .map_err(|err| DavError::Network(err.to_string()))?
+            {
                 bytes.extend_from_slice(&chunk);
                 if bytes.len() > MOST_BYTES {
                     return Err(DavError::TooLarge(MOST_BYTES));
                 }
             }
             let body = String::from_utf8_lossy(&bytes).into_owned();
-            return check(Answer { url, status, etag, retry_after, dav, body });
+            return check(Answer {
+                url,
+                status,
+                etag,
+                retry_after,
+                dav,
+                body,
+            });
         }
-        Err(DavError::Http { status: 310, detail: "too many redirects".into() })
+        Err(DavError::Http {
+            status: 310,
+            detail: "too many redirects".into(),
+        })
     }
 
-    async fn multistatus(&self, method: &str, href: &str, depth: &str, request: String) -> Result<Multistatus, DavError> {
-        let answer = self.send(method, href, Some(depth), Some(request), &[]).await?;
+    async fn multistatus(
+        &self,
+        method: &str,
+        href: &str,
+        depth: &str,
+        request: String,
+    ) -> Result<Multistatus, DavError> {
+        let answer = self
+            .send(method, href, Some(depth), Some(request), &[])
+            .await?;
         xml::parse_multistatus(&answer.body)
     }
 
@@ -357,7 +493,15 @@ impl DavClient {
 
     /// The principal the server names at `href`.
     async fn principal_at(&self, href: &str) -> Result<String, DavError> {
-        let answer = self.send("PROPFIND", href, Some("0"), Some(body::principal().into()), &[]).await?;
+        let answer = self
+            .send(
+                "PROPFIND",
+                href,
+                Some("0"),
+                Some(body::principal().into()),
+                &[],
+            )
+            .await?;
         let found = xml::parse_multistatus(&answer.body)?;
         let principal = found
             .responses
@@ -403,7 +547,10 @@ fn not_dav(err: &DavError) -> bool {
 /// The path is canonical (decoded), so the same resource has one string
 /// whichever way the server spelled its escapes.
 fn absolute(asked: &Url, href: &str) -> String {
-    asked.join(&wire_href(href)).map(|url| canonical_href(url.as_str())).unwrap_or_else(|_| canonical_href(href))
+    asked
+        .join(&wire_href(href))
+        .map(|url| canonical_href(url.as_str()))
+        .unwrap_or_else(|_| canonical_href(href))
 }
 
 /// How much of a failed write's answer is kept to explain it.
@@ -428,27 +575,45 @@ fn check(answer: Answer) -> Result<Answer, DavError> {
     match answer.status.as_u16() {
         200..=299 => Ok(answer),
         401 => Err(DavError::Unauthorized),
-        403 | 409 if xml::precondition(&answer.body).as_deref() == Some("valid-sync-token") => Err(DavError::InvalidSyncToken),
+        403 | 409 if xml::precondition(&answer.body).as_deref() == Some("valid-sync-token") => {
+            Err(DavError::InvalidSyncToken)
+        }
         403 => Err(DavError::Forbidden(detail(&answer.body))),
         404 | 410 => Err(DavError::NotFound),
         409 | 412 => Err(DavError::Changed),
         429 | 503 => Err(DavError::Busy(answer.retry_after)),
-        status => Err(DavError::Http { status, detail: detail(&answer.body) }),
+        status => Err(DavError::Http {
+            status,
+            detail: detail(&answer.body),
+        }),
     }
 }
 
 /// `#RRGGBBAA` or `#RRGGBB` as lower-case `#rrggbb`.
 fn color(raw: &str) -> Option<String> {
     let hex = raw.trim().strip_prefix('#')?;
-    (hex.len() >= 6 && hex[..6].bytes().all(|b| b.is_ascii_hexdigit())).then(|| format!("#{}", hex[..6].to_ascii_lowercase()))
+    (hex.len() >= 6 && hex[..6].bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| format!("#{}", hex[..6].to_ascii_lowercase()))
 }
 
 impl DavApi for DavClient {
     async fn homes(&self) -> Result<Homes, DavError> {
         let principal = self.principal().await?;
-        let answer = self.send("PROPFIND", &principal, Some("0"), Some(body::homes().into()), &[]).await?;
+        let answer = self
+            .send(
+                "PROPFIND",
+                &principal,
+                Some("0"),
+                Some(body::homes().into()),
+                &[],
+            )
+            .await?;
         let homes = xml::parse_multistatus(&answer.body)?;
-        let props = homes.responses.first().map(|r| r.props.clone()).unwrap_or_default();
+        let props = homes
+            .responses
+            .first()
+            .map(|r| r.props.clone())
+            .unwrap_or_default();
         let resolve = |home: Option<String>| home.map(|h| self.resolve(&answer.url, &h));
         Ok(Homes {
             principal,
@@ -459,7 +624,9 @@ impl DavApi for DavClient {
     }
 
     async fn collections(&self, home: &str, kind: Kind) -> Result<Vec<Collection>, DavError> {
-        let found = self.multistatus("PROPFIND", home, "1", body::collections().into()).await?;
+        let found = self
+            .multistatus("PROPFIND", home, "1", body::collections().into())
+            .await?;
         let asked = self.url(home)?;
         let home_path = path_of(home);
         Ok(found
@@ -467,12 +634,21 @@ impl DavApi for DavClient {
             .into_iter()
             .filter(|r| path_of(&r.href) != home_path)
             .filter(|r| match kind {
-                Kind::Calendar => r.props.is_calendar && (r.props.components.is_empty() || r.props.components.iter().any(|c| c == "VEVENT")),
+                Kind::Calendar => {
+                    r.props.is_calendar
+                        && (r.props.components.is_empty()
+                            || r.props.components.iter().any(|c| c == "VEVENT"))
+                }
                 Kind::AddressBook => r.props.is_addressbook,
             })
             .map(|r| {
                 let name = r.props.displayname.clone().unwrap_or_else(|| {
-                    path_of(&r.href).trim_end_matches('/').rsplit('/').next().unwrap_or_default().to_string()
+                    path_of(&r.href)
+                        .trim_end_matches('/')
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or_default()
+                        .to_string()
                 });
                 Collection {
                     href: absolute(&asked, &r.href),
@@ -489,16 +665,39 @@ impl DavApi for DavClient {
     }
 
     async fn state(&self, collection: &str) -> Result<CollectionState, DavError> {
-        let found = self.multistatus("PROPFIND", collection, "0", body::state().into()).await?;
-        let props = found.responses.into_iter().next().map(|r| r.props).unwrap_or_default();
-        Ok(CollectionState { sync_token: props.sync_token, ctag: props.getctag })
+        let found = self
+            .multistatus("PROPFIND", collection, "0", body::state().into())
+            .await?;
+        let props = found
+            .responses
+            .into_iter()
+            .next()
+            .map(|r| r.props)
+            .unwrap_or_default();
+        Ok(CollectionState {
+            sync_token: props.sync_token,
+            ctag: props.getctag,
+        })
     }
 
     async fn sync(&self, collection: &str, token: &str) -> Result<Synced, DavError> {
-        let answer = self.send("REPORT", collection, None, Some(body::sync_collection(token)), &[]).await;
+        let answer = self
+            .send(
+                "REPORT",
+                collection,
+                None,
+                Some(body::sync_collection(token)),
+                &[],
+            )
+            .await;
         let answer = match answer {
             // A server without the report answers 400, 403 or 501.
-            Err(DavError::Http { status: 400 | 501, .. }) | Err(DavError::Forbidden(_)) if token.is_empty() => {
+            Err(DavError::Http {
+                status: 400 | 501, ..
+            })
+            | Err(DavError::Forbidden(_))
+                if token.is_empty() =>
+            {
                 return Err(DavError::NoSyncCollection);
             }
             other => other?,
@@ -506,7 +705,10 @@ impl DavApi for DavClient {
         let found = xml::parse_multistatus(&answer.body)?;
         let asked = self.url(collection)?;
         let own = path_of(collection);
-        let mut synced = Synced { token: found.sync_token.unwrap_or_default(), ..Synced::default() };
+        let mut synced = Synced {
+            token: found.sync_token.unwrap_or_default(),
+            ..Synced::default()
+        };
         for response in found.responses {
             if path_of(&response.href) == own {
                 synced.more |= response.status == Some(507);
@@ -522,10 +724,21 @@ impl DavApi for DavClient {
         Ok(synced)
     }
 
-    async fn members(&self, collection: &str, kind: Kind, range: Option<(EpochMillis, EpochMillis)>) -> Result<Vec<Member>, DavError> {
+    async fn members(
+        &self,
+        collection: &str,
+        kind: Kind,
+        range: Option<(EpochMillis, EpochMillis)>,
+    ) -> Result<Vec<Member>, DavError> {
         let found = match kind {
-            Kind::Calendar => self.multistatus("REPORT", collection, "1", body::calendar_query(range)).await?,
-            Kind::AddressBook => self.multistatus("PROPFIND", collection, "1", body::members().into()).await?,
+            Kind::Calendar => {
+                self.multistatus("REPORT", collection, "1", body::calendar_query(range))
+                    .await?
+            }
+            Kind::AddressBook => {
+                self.multistatus("PROPFIND", collection, "1", body::members().into())
+                    .await?
+            }
         };
         let asked = self.url(collection)?;
         let own = path_of(collection);
@@ -533,11 +746,21 @@ impl DavApi for DavClient {
             .responses
             .into_iter()
             .filter(|r| path_of(&r.href) != own)
-            .filter_map(|r| Some(Member { etag: r.props.etag?, href: absolute(&asked, &r.href) }))
+            .filter_map(|r| {
+                Some(Member {
+                    etag: r.props.etag?,
+                    href: absolute(&asked, &r.href),
+                })
+            })
             .collect())
     }
 
-    async fn fetch(&self, collection: &str, kind: Kind, hrefs: &[String]) -> Result<Vec<Fetched>, DavError> {
+    async fn fetch(
+        &self,
+        collection: &str,
+        kind: Kind,
+        hrefs: &[String],
+    ) -> Result<Vec<Fetched>, DavError> {
         let mut out = Vec::new();
         for batch in hrefs.chunks(MULTIGET_BATCH) {
             let request = match kind {
@@ -546,14 +769,24 @@ impl DavApi for DavClient {
             };
             let found = self.multistatus("REPORT", collection, "1", request).await?;
             let asked = self.url(collection)?;
-            out.extend(found.responses.into_iter().filter(|r| r.status != Some(404)).filter_map(|r| {
-                let body = r.props.calendar_data.or(r.props.address_data)?;
-                // One resource past the limit is left out, not the batch.
-                if body.len() > MOST_RESOURCE_BYTES {
-                    return None;
-                }
-                Some(Fetched { etag: r.props.etag.unwrap_or_default(), href: absolute(&asked, &r.href), body })
-            }));
+            out.extend(
+                found
+                    .responses
+                    .into_iter()
+                    .filter(|r| r.status != Some(404))
+                    .filter_map(|r| {
+                        let body = r.props.calendar_data.or(r.props.address_data)?;
+                        // One resource past the limit is left out, not the batch.
+                        if body.len() > MOST_RESOURCE_BYTES {
+                            return None;
+                        }
+                        Some(Fetched {
+                            etag: r.props.etag.unwrap_or_default(),
+                            href: absolute(&asked, &r.href),
+                            body,
+                        })
+                    }),
+            );
         }
         Ok(out)
     }
@@ -563,10 +796,20 @@ impl DavApi for DavClient {
         if answer.body.len() > MOST_RESOURCE_BYTES {
             return Err(DavError::TooLarge(MOST_RESOURCE_BYTES));
         }
-        Ok(Fetched { href: canonical_href(self.url(href)?.as_str()), etag: answer.etag.unwrap_or_default(), body: answer.body })
+        Ok(Fetched {
+            href: canonical_href(self.url(href)?.as_str()),
+            etag: answer.etag.unwrap_or_default(),
+            body: answer.body,
+        })
     }
 
-    async fn put(&self, href: &str, body: &str, kind: Kind, when: Precondition) -> Result<Option<String>, DavError> {
+    async fn put(
+        &self,
+        href: &str,
+        body: &str,
+        kind: Kind,
+        when: Precondition,
+    ) -> Result<Option<String>, DavError> {
         if body.len() > MOST_RESOURCE_BYTES {
             return Err(DavError::TooLarge(MOST_RESOURCE_BYTES));
         }
@@ -582,7 +825,9 @@ impl DavApi for DavClient {
         // The body is not XML, so it goes through `send` without the XML
         // content type: a request built here, as `send` builds one.
         let url = self.url(href)?;
-        let trusted = url.host_str().is_some_and(|h| same_site(self.base.host_str().unwrap_or_default(), h));
+        let trusted = url
+            .host_str()
+            .is_some_and(|h| same_site(self.base.host_str().unwrap_or_default(), h));
         let mut refused: Option<String> = None;
         let response = loop {
             let mut request = self.http.put(url.clone()).body(body.to_string());
@@ -593,8 +838,13 @@ impl DavApi for DavClient {
             for (name, value) in &headers {
                 request = request.header(*name, value);
             }
-            let response = request.send().await.map_err(|err| DavError::Network(err.to_string()))?;
-            if response.status() == StatusCode::UNAUTHORIZED && trusted && refused.is_none()
+            let response = request
+                .send()
+                .await
+                .map_err(|err| DavError::Network(err.to_string()))?;
+            if response.status() == StatusCode::UNAUTHORIZED
+                && trusted
+                && refused.is_none()
                 && let Some(token) = sent
             {
                 refused = Some(token);
@@ -606,34 +856,69 @@ impl DavApi for DavClient {
             break response;
         };
         let status = response.status();
-        let etag = response.headers().get("ETag").and_then(|e| e.to_str().ok()).map(str::to_string);
+        let etag = response
+            .headers()
+            .get("ETag")
+            .and_then(|e| e.to_str().ok())
+            .map(str::to_string);
         // The body of a success is never read, and what explains a failure
         // is a few lines at the start.
-        let text = if status.is_success() { String::new() } else { read_prefix(response, ERROR_BYTES).await };
-        check(Answer { url, status, etag: etag.clone(), retry_after: None, dav: None, body: text })?;
+        let text = if status.is_success() {
+            String::new()
+        } else {
+            read_prefix(response, ERROR_BYTES).await
+        };
+        check(Answer {
+            url,
+            status,
+            etag: etag.clone(),
+            retry_after: None,
+            dav: None,
+            body: text,
+        })?;
         Ok(etag)
     }
 
     async fn delete(&self, href: &str, etag: Option<&str>) -> Result<(), DavError> {
-        let headers: Vec<(&str, String)> = etag.map(|e| ("If-Match", e.to_string())).into_iter().collect();
-        self.send("DELETE", href, None, None, &headers).await.map(drop)
+        let headers: Vec<(&str, String)> = etag
+            .map(|e| ("If-Match", e.to_string()))
+            .into_iter()
+            .collect();
+        self.send("DELETE", href, None, None, &headers)
+            .await
+            .map(drop)
     }
 
     async fn find_uid(&self, collection: &str, uid: &str) -> Result<Option<Fetched>, DavError> {
-        let found = self.multistatus("REPORT", collection, "1", body::uid_query(uid)).await?;
+        let found = self
+            .multistatus("REPORT", collection, "1", body::uid_query(uid))
+            .await?;
         let asked = self.url(collection)?;
         // A CalDAV text-match finds the UID as a substring (RFC 4791
         // section 9.7.5), so "12345" also matches "order-12345@shop".
         Ok(found.responses.into_iter().find_map(|r| {
-            let body = r.props.calendar_data.filter(|data| crate::ical::holds_uid(data, uid))?;
-            Some(Fetched { etag: r.props.etag.unwrap_or_default(), body, href: absolute(&asked, &r.href) })
+            let body = r
+                .props
+                .calendar_data
+                .filter(|data| crate::ical::holds_uid(data, uid))?;
+            Some(Fetched {
+                etag: r.props.etag.unwrap_or_default(),
+                body,
+                href: absolute(&asked, &r.href),
+            })
         }))
     }
 
     async fn auto_schedule(&self, at: Option<&str>) -> Result<bool, DavError> {
         let own = path_of(self.base.as_str());
-        let answer = self.send("OPTIONS", at.unwrap_or(&own), None, None, &[]).await?;
-        Ok(answer.dav.is_some_and(|header| header.split(',').any(|token| token.trim().eq_ignore_ascii_case("calendar-auto-schedule"))))
+        let answer = self
+            .send("OPTIONS", at.unwrap_or(&own), None, None, &[])
+            .await?;
+        Ok(answer.dav.is_some_and(|header| {
+            header
+                .split(',')
+                .any(|token| token.trim().eq_ignore_ascii_case("calendar-auto-schedule"))
+        }))
     }
 
     fn host(&self) -> &str {
@@ -663,7 +948,10 @@ mod tests {
     #[tokio::test]
     async fn a_short_answer_is_read_whole() {
         let server = MockServer::start().await;
-        Mock::given(method("GET")).respond_with(ResponseTemplate::new(500).set_body_string("nope")).mount(&server).await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500).set_body_string("nope"))
+            .mount(&server)
+            .await;
         let response = reqwest::get(server.uri()).await.unwrap();
         assert_eq!(read_prefix(response, 64 << 10).await, "nope");
     }

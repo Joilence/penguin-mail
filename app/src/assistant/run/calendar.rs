@@ -777,7 +777,9 @@ impl<A: Accounts> Tools<A> {
         // The question names the event, so the body is read before asking.
         // Answering reads it again from the cache.
         let id = message_id.clone();
-        let body = self.call(async move { sync.body(&id).await }).await?;
+        let body = self
+            .call_for(account.id, async move { sync.body(&id).await })
+            .await?;
         let invitation = body
             .calendar
             .as_deref()

@@ -12,9 +12,9 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib, graphene};
 use mailrs_domain::{AccountId, ThreadSummary};
 
+use super::list_feed::order;
 use super::sidebar::DRAG_MAIL;
 use super::thread_row::{Avatar, OpenMenu, ThreadRow};
-use super::list_feed::order;
 use crate::diff::splice;
 use crate::photos::ContactPhotos;
 use mailrs_domain::translate::gettext;
@@ -137,7 +137,10 @@ impl ThreadList {
                         .filter_map(|p| rows.get(p as usize).map(Rc::clone))
                         .collect()
                 } else {
-                    rows.get(position as usize).map(Rc::clone).into_iter().collect()
+                    rows.get(position as usize)
+                        .map(Rc::clone)
+                        .into_iter()
+                        .collect()
                 };
                 if taken.is_empty() {
                     return None;
@@ -305,7 +308,10 @@ impl ThreadList {
         header.pack_end(&search_button);
 
         let categories_slot = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let banner = adw::Banner::builder().use_markup(false).revealed(false).build();
+        let banner = adw::Banner::builder()
+            .use_markup(false)
+            .revealed(false)
+            .build();
         let toolbar = adw::ToolbarView::new();
         toolbar.add_top_bar(&header);
         toolbar.add_top_bar(&categories_slot);
@@ -362,11 +368,12 @@ impl ThreadList {
         // A search's subtitle is its query, which the open entry already
         // shows; it comes back when the entry closes.
         let weak = Rc::downgrade(&list);
-        list.search_bar.connect_search_mode_enabled_notify(move |_| {
-            if let Some(list) = weak.upgrade() {
-                list.show_subtitle();
-            }
-        });
+        list.search_bar
+            .connect_search_mode_enabled_notify(move |_| {
+                if let Some(list) = weak.upgrade() {
+                    list.show_subtitle();
+                }
+            });
         let weak = Rc::downgrade(&list);
         list.search_entry.connect_changed(move |_| {
             if let Some(list) = weak.upgrade() {
@@ -408,7 +415,8 @@ impl ThreadList {
         let searching = self.search_bar.is_search_mode().then_some(query.as_str());
         let shows = subtitle_shows(layout.subtitle, &self.subtitle.label(), searching);
         self.subtitle.set_visible(shows);
-        self.categories_slot.set_height_request(if shows { 7 } else { 0 });
+        self.categories_slot
+            .set_height_request(if shows { 7 } else { 0 });
     }
 
     /// Lays the header out for a phone or for a wider window. On a phone
@@ -438,7 +446,8 @@ impl ThreadList {
             self.bottom_slot.set_child(Some(&self.compose_button));
         } else {
             self.bottom_slot.set_child(None::<&gtk::Widget>);
-            self.compose_button.set_icon_name("mail-message-new-symbolic");
+            self.compose_button
+                .set_icon_name("mail-message-new-symbolic");
             for class in ["suggested-action", "pill", "bottom-new"] {
                 self.compose_button.remove_css_class(class);
             }
@@ -893,7 +902,9 @@ fn land_on_selection(view: &gtk::ListView, selection: &gtk::MultiSelection) {
         let (list, selection) = (list.clone(), selection.clone());
         glib::idle_add_local_once(move || {
             let Some(list) = list.upgrade() else { return };
-            let Some(row) = list.focus_child() else { return };
+            let Some(row) = list.focus_child() else {
+                return;
+            };
             let focused = row
                 .first_child()
                 .and_downcast::<ThreadRow>()

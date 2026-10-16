@@ -21,29 +21,29 @@ mod google;
 pub use google::withheld as withheld_by_grant;
 pub mod imap;
 pub mod jmap;
+pub(crate) mod local;
 pub mod microsoft;
 mod no_mail;
-pub mod pop3;
-pub(crate) mod local;
 mod pacing;
+pub mod pop3;
 mod setup;
 mod sieve;
 
-pub use caldav::CalDav;
 pub use any::{AnyAutoReply, AnyCalendar, AnyContacts, AnyIdentities, AnyMail, AnyRules};
+pub use beside::RulesBeside;
+pub use caldav::CalDav;
 pub use carddav::CardDav;
 pub use clients::{AnyDav, AnyGmail, AnyGraph, AnyImap, AnyJmap, AnyPop3, AnySieve, AnySmtp};
-pub use beside::RulesBeside;
-pub use local::LocalRules;
 pub use google::{Google, ID_PAGE_SIZE, LIST_PAGE_SIZE, is_workspace};
 pub use imap::{Imap, ImapApi, ImapSettings, Submit};
 pub use jmap::{Jmap, JmapApi, JmapSettings, JmapSieve, SERVER_REPLY_SCRIPT};
+pub use local::LocalRules;
 pub use microsoft::{GraphApi, Microsoft, MicrosoftSettings};
 pub use no_mail::NoMail;
-pub use pop3::{Pop3, Pop3Settings};
 pub use pacing::{Priority, background, priority};
-pub use sieve::SieveRules;
+pub use pop3::{Pop3, Pop3Settings};
 pub(crate) use setup::{Beside, FoundServer};
+pub use sieve::SieveRules;
 
 /// Where an account's rules run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +63,8 @@ use mailrs_domain::calendar as model;
 use mailrs_domain::invitation::Answer;
 use mailrs_domain::query::Query;
 use mailrs_domain::{
-    AccountId, EpochMillis, Filter, Location, MailSet, Membership, MessageMeta, RemoteMailbox, Role, Vacation,
+    AccountId, EpochMillis, Filter, Location, MailSet, Membership, MessageMeta, RemoteMailbox,
+    Role, Vacation,
 };
 use mailrs_gmail::{ConnectionsPage, ContactFields, LabelColor, Person};
 use mailrs_imap::UidSet;
@@ -416,7 +417,11 @@ impl AccountServices {
     /// An account on an IMAP server: its mail and the address it sends
     /// from. `connect_imap` adds the calendar, contacts, rules and
     /// automatic reply the account's servers offer.
-    pub fn imap(imap: impl Into<AnyImap>, smtp: impl Into<AnySmtp>, settings: ImapSettings) -> Self {
+    pub fn imap(
+        imap: impl Into<AnyImap>,
+        smtp: impl Into<AnySmtp>,
+        settings: ImapSettings,
+    ) -> Self {
         let adapter = Imap::new(Arc::new(imap.into()), Arc::new(smtp.into()), settings);
         AccountServices {
             mail: AnyMail::Imap(adapter.clone()),
@@ -455,7 +460,9 @@ impl AccountServices {
     /// sends replies only once it has been read, so this is asked when
     /// the answer is offered and never kept.
     pub fn tells_organizer(&self) -> bool {
-        self.calendar.as_ref().is_none_or(AnyCalendar::tells_organizer)
+        self.calendar
+            .as_ref()
+            .is_none_or(AnyCalendar::tells_organizer)
     }
 
     pub fn with_calendar(mut self, calendar: AnyCalendar) -> Self {
@@ -506,7 +513,14 @@ impl AccountServices {
             provider_name: "Fastmail".into(),
             window_days: crate::DEFAULT_WINDOW_DAYS,
             labels: fake.with(|s| s.session.mailboxes_per_email() != Some(1)),
-            capabilities: fake.with(|s| s.session.capabilities.keys().filter(|c| s.session.offers(c)).cloned().collect()),
+            capabilities: fake.with(|s| {
+                s.session
+                    .capabilities
+                    .keys()
+                    .filter(|c| s.session.offers(c))
+                    .cloned()
+                    .collect()
+            }),
             auto_reply_needs_sign_in: false,
         };
         let beside = Beside::nothing(&settings.address, &settings.provider_name);
@@ -542,7 +556,8 @@ impl AccountServices {
     #[cfg(any(test, feature = "fake"))]
     pub fn fake_with_capabilities(gmail: Arc<FakeGmail>, caps: MailCapabilities) -> Self {
         let mut services = AccountServices::google(Arc::clone(&gmail));
-        services.mail = AnyMail::Google(Google::new(Arc::new(AnyGmail::from(gmail))).with_capabilities(caps));
+        services.mail =
+            AnyMail::Google(Google::new(Arc::new(AnyGmail::from(gmail))).with_capabilities(caps));
         services
     }
 
@@ -569,7 +584,13 @@ impl AccountServices {
         smtp: impl Into<AnySmtp>,
         settings: Pop3Settings,
     ) -> Self {
-        let adapter = Pop3::new(db.clone(), account_id, Arc::new(smtp.into()), Arc::new(client.into()), settings);
+        let adapter = Pop3::new(
+            db.clone(),
+            account_id,
+            Arc::new(smtp.into()),
+            Arc::new(client.into()),
+            settings,
+        );
         AccountServices {
             mail: AnyMail::Pop3(adapter.clone()),
             calendar: None,
@@ -609,9 +630,16 @@ impl AccountServices {
             contacts: self.contacts.is_some() && !refused.contacts,
             rules: self.rules.is_some() && !refused.rules,
             auto_reply: self.auto_reply.is_some() && !refused.auto_reply,
-            auto_reply_needs_sign_in: self.auto_reply.is_none() && self.mail.auto_reply_needs_sign_in(),
-            auto_reply_subject: self.auto_reply.as_ref().is_some_and(AutoReplyService::keeps_subject),
-            auto_reply_contacts_only: self.auto_reply.as_ref().is_some_and(AutoReplyService::limits_to_contacts),
+            auto_reply_needs_sign_in: self.auto_reply.is_none()
+                && self.mail.auto_reply_needs_sign_in(),
+            auto_reply_subject: self
+                .auto_reply
+                .as_ref()
+                .is_some_and(AutoReplyService::keeps_subject),
+            auto_reply_contacts_only: self
+                .auto_reply
+                .as_ref()
+                .is_some_and(AutoReplyService::limits_to_contacts),
             // Gmail, IMAP and Graph search on the server. A POP3 account's
             // server keeps nothing to search; its mail is all in the store.
             // A calendar account has no mail to search at all.
@@ -926,7 +954,11 @@ pub struct Held {
 pub enum Claimed {
     /// The server still holds it: the hold, the hour it goes, and the
     /// message as it goes out, blind copies and all.
-    Held { held: Held, send_at: EpochMillis, raw: Vec<u8> },
+    Held {
+        held: Held,
+        send_at: EpochMillis,
+        raw: Vec<u8>,
+    },
     /// It went, or someone called it back. The copy is filed as such: in
     /// Sent, or back in Drafts as an ordinary draft.
     Settled,
@@ -1262,7 +1294,11 @@ pub trait MailBackend: Send + Sync + 'static {
     /// so the server may hold the message anyway (the JMAP adapter maps
     /// `JmapError::HoldUnknown` here); look in Drafts before queueing a
     /// second copy locally.
-    fn schedule(&self, raw: &[u8], at: EpochMillis) -> impl Future<Output = Result<Held, BackendError>> + Send {
+    fn schedule(
+        &self,
+        raw: &[u8],
+        at: EpochMillis,
+    ) -> impl Future<Output = Result<Held, BackendError>> + Send {
         let _ = (raw, at);
         async { Err(BackendError::Unsupported) }
     }
@@ -1272,7 +1308,10 @@ pub trait MailBackend: Send + Sync + 'static {
     /// `None` when the server holds no copy of it. An error that is not
     /// transient means the server's answer cannot settle whether it holds
     /// the message.
-    fn find_hold(&self, message_id: &str) -> impl Future<Output = Result<Option<Held>, BackendError>> + Send {
+    fn find_hold(
+        &self,
+        message_id: &str,
+    ) -> impl Future<Output = Result<Option<Held>, BackendError>> + Send {
         let _ = message_id;
         async { Ok(None) }
     }
@@ -1280,7 +1319,10 @@ pub trait MailBackend: Send + Sync + 'static {
     /// The hold whose copy in Drafts is the message `email_id`, found by
     /// the copy alone, for a hold this install has no row for. `None` when
     /// the server holds nothing for it.
-    fn hold_of_copy(&self, email_id: &str) -> impl Future<Output = Result<Option<Claimed>, BackendError>> + Send {
+    fn hold_of_copy(
+        &self,
+        email_id: &str,
+    ) -> impl Future<Output = Result<Option<Claimed>, BackendError>> + Send {
         let _ = email_id;
         async { Ok(None) }
     }
@@ -1288,14 +1330,24 @@ pub trait MailBackend: Send + Sync + 'static {
     /// Calls the hold `handle` back. `message_id` is the copy the hold
     /// left in Drafts and `send_at` the hour it was held for, which say
     /// what happened once the server forgets the hold.
-    fn unschedule(&self, handle: &str, message_id: &str, send_at: EpochMillis) -> impl Future<Output = Result<Unheld, BackendError>> + Send {
+    fn unschedule(
+        &self,
+        handle: &str,
+        message_id: &str,
+        send_at: EpochMillis,
+    ) -> impl Future<Output = Result<Unheld, BackendError>> + Send {
         let _ = (handle, message_id, send_at);
         async { Err(BackendError::Unsupported) }
     }
 
     /// Where the hold `handle` stands now, with its copy and hour as for
     /// `unschedule`. A sent one is filed in Sent.
-    fn settle(&self, handle: &str, message_id: &str, send_at: EpochMillis) -> impl Future<Output = Result<Settled, BackendError>> + Send {
+    fn settle(
+        &self,
+        handle: &str,
+        message_id: &str,
+        send_at: EpochMillis,
+    ) -> impl Future<Output = Result<Settled, BackendError>> + Send {
         let _ = (handle, message_id, send_at);
         async { Err(BackendError::Unsupported) }
     }
@@ -1308,7 +1360,10 @@ pub trait MailBackend: Send + Sync + 'static {
 
     /// Sends `receipt` the server's own way. `Unsupported` has it go as
     /// ordinary mail instead.
-    fn send_receipt(&self, receipt: &ReceiptOut) -> impl Future<Output = Result<(), BackendError>> + Send {
+    fn send_receipt(
+        &self,
+        receipt: &ReceiptOut,
+    ) -> impl Future<Output = Result<(), BackendError>> + Send {
         let _ = receipt;
         async { Err(BackendError::Unsupported) }
     }
@@ -1388,7 +1443,11 @@ pub trait CalendarService: Send + Sync + 'static {
 
     /// Lets `email` open the file `file_id` the app uploaded, without the
     /// provider mailing them.
-    fn share_file(&self, file_id: &str, email: &str) -> impl Future<Output = Result<(), BackendError>> + Send;
+    fn share_file(
+        &self,
+        file_id: &str,
+        email: &str,
+    ) -> impl Future<Output = Result<(), BackendError>> + Send;
 
     /// Moves `event` from its calendar to `destination` on the same
     /// account, a series with its changed occurrences, and mails its
@@ -1532,7 +1591,11 @@ mod tests {
     fn a_zero_limit_reads_as_no_storage() {
         assert_eq!(Storage::new(10, 0, None), None);
         let full = Storage::new(12, 10, None).unwrap();
-        assert_eq!(full.percent(), 100, "usage past the limit reads as full, not past it");
+        assert_eq!(
+            full.percent(),
+            100,
+            "usage past the limit reads as full, not past it"
+        );
         assert!(full.full() && full.past_warning());
     }
 
@@ -1547,23 +1610,49 @@ mod tests {
     #[tokio::test]
     async fn gmail_storage_comes_from_drive_and_needs_its_permission() {
         let fake = FakeGmail::new();
-        fake.with(|s| s.drive_storage = Some(mailrs_gmail::DriveStorage { usage: 90, limit: Some(100) }));
+        fake.with(|s| {
+            s.drive_storage = Some(mailrs_gmail::DriveStorage {
+                usage: 90,
+                limit: Some(100),
+            })
+        });
         let services = AccountServices::google(Arc::new(fake));
-        assert_eq!(services.mail.storage().await.unwrap(), Storage::new(90, 100, None));
+        assert_eq!(
+            services.mail.storage().await.unwrap(),
+            Storage::new(90, 100, None)
+        );
 
         let withheld = FakeGmail::new();
-        withheld.with(|s| s.drive_storage = Some(mailrs_gmail::DriveStorage { usage: 90, limit: Some(100) }));
+        withheld.with(|s| {
+            s.drive_storage = Some(mailrs_gmail::DriveStorage {
+                usage: 90,
+                limit: Some(100),
+            })
+        });
         withheld.withhold(mailrs_gmail::DRIVE_FILE_SCOPE);
         let services = AccountServices::google(Arc::new(withheld));
-        assert_eq!(services.mail.storage().await.unwrap(), None, "no Drive permission, no number");
+        assert_eq!(
+            services.mail.storage().await.unwrap(),
+            None,
+            "no Drive permission, no number"
+        );
     }
 
     #[tokio::test]
     async fn an_adapter_that_holds_nothing_says_so() {
         let services = AccountServices::google(Arc::new(FakeGmail::new()));
-        assert!(matches!(services.mail.schedule(b"raw", 0).await, Err(BackendError::Unsupported)));
-        assert!(matches!(services.mail.unschedule("S1", "M1", 0).await, Err(BackendError::Unsupported)));
-        assert!(matches!(services.mail.settle("S1", "M1", 0).await, Err(BackendError::Unsupported)));
+        assert!(matches!(
+            services.mail.schedule(b"raw", 0).await,
+            Err(BackendError::Unsupported)
+        ));
+        assert!(matches!(
+            services.mail.unschedule("S1", "M1", 0).await,
+            Err(BackendError::Unsupported)
+        ));
+        assert!(matches!(
+            services.mail.settle("S1", "M1", 0).await,
+            Err(BackendError::Unsupported)
+        ));
         let receipt = ReceiptOut {
             message_id: "m".into(),
             from: "a@x".into(),
@@ -1571,7 +1660,10 @@ mod tests {
             subject: "s".into(),
             text: "t".into(),
         };
-        assert!(matches!(services.mail.send_receipt(&receipt).await, Err(BackendError::Unsupported)));
+        assert!(matches!(
+            services.mail.send_receipt(&receipt).await,
+            Err(BackendError::Unsupported)
+        ));
     }
 
     #[test]
@@ -1645,15 +1737,24 @@ mod tests {
         };
         let offers = AccountServices::fake_with_capabilities(gmail, caps).offers();
         assert!(offers.tags && offers.focused && !offers.labels);
-        assert_eq!((Offers::EVERYTHING.tags, Offers::EVERYTHING.focused), (false, false));
+        assert_eq!(
+            (Offers::EVERYTHING.tags, Offers::EVERYTHING.focused),
+            (false, false)
+        );
     }
 
     #[test]
     fn gmail_offers_all_three_calendar_gates_and_imap_none() {
         let gmail = AccountServices::google(Arc::new(FakeGmail::new())).offers();
-        assert!(gmail.event_files && gmail.moves_events && gmail.calendar_list && gmail.quiet_changes);
-        let imap = AccountServices::fake_imap(Arc::new(FakeImap::new()), Arc::new(FakeSmtp::default())).offers();
-        assert!(!imap.event_files && !imap.moves_events && !imap.calendar_list && !imap.quiet_changes);
+        assert!(
+            gmail.event_files && gmail.moves_events && gmail.calendar_list && gmail.quiet_changes
+        );
+        let imap =
+            AccountServices::fake_imap(Arc::new(FakeImap::new()), Arc::new(FakeSmtp::default()))
+                .offers();
+        assert!(
+            !imap.event_files && !imap.moves_events && !imap.calendar_list && !imap.quiet_changes
+        );
     }
 
     #[test]
@@ -1661,7 +1762,10 @@ mod tests {
         let mut services = AccountServices::google(Arc::new(FakeGmail::new()));
         services.calendar = None;
         services.rules = None;
-        assert_eq!(services.offers().missing(), [Missing::Calendar, Missing::Rules]);
+        assert_eq!(
+            services.offers().missing(),
+            [Missing::Calendar, Missing::Rules]
+        );
     }
 
     #[test]
@@ -1672,12 +1776,19 @@ mod tests {
             Arc::new(crate::fake::FakeImap::new()),
             Arc::new(crate::fake::FakeSmtp::default()),
         );
-        assert!(imap.offers().search, "IMAP answers native_search false and still searches on the server");
+        assert!(
+            imap.offers().search,
+            "IMAP answers native_search false and still searches on the server"
+        );
         let caps = MailCapabilities {
             local_mailboxes: true,
             ..AccountServices::google(Arc::clone(&gmail)).capabilities()
         };
-        assert!(!AccountServices::fake_with_capabilities(gmail, caps).offers().search);
+        assert!(
+            !AccountServices::fake_with_capabilities(gmail, caps)
+                .offers()
+                .search
+        );
     }
 
     #[tokio::test]
