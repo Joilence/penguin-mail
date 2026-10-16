@@ -6,6 +6,53 @@ use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 #[tokio::test]
+async fn body_reads_select_content_ids_from_file_attachments() {
+    let server = MockServer::start().await;
+    common::token_endpoint(&server, "r").await;
+    Mock::given(method("GET"))
+        .and(path("/v1.0/me/messages/m1"))
+        .respond_with(|request: &Request| {
+            let query: std::collections::HashMap<_, _> = request.url.query_pairs().collect();
+            let fields = query["$expand"]
+                .strip_prefix("attachments($select=")
+                .unwrap()
+                .strip_suffix(')')
+                .unwrap();
+            if fields.split(',').any(|field| field == "contentId") {
+                return ResponseTemplate::new(400).set_body_json(json!({
+                    "error": {"code": "BadRequest", "message":
+                        "Could not find a property named 'contentId' on type 'microsoft.graph.attachment'."}
+                }));
+            }
+            assert_eq!(query["$select"], "body,hasAttachments");
+            assert!(fields.split(',').any(|field| field == "microsoft.graph.fileAttachment/contentId"));
+            assert!(!fields.contains("contentBytes"));
+            ResponseTemplate::new(200).set_body_json(json!({
+                "body": {"contentType": "html", "content": "<img src=\"cid:logo\">"},
+                "hasAttachments": true,
+                "attachments": [
+                    {"@odata.type": "#microsoft.graph.fileAttachment", "id": "image",
+                     "name": "logo.png", "contentType": "image/png", "size": 128,
+                     "isInline": true, "contentId": "logo"},
+                    {"@odata.type": "#microsoft.graph.itemAttachment", "id": "mail",
+                     "name": "Forwarded message", "contentType": "message/rfc822",
+                     "size": 2048, "isInline": false}
+                ]
+            }))
+        })
+        .expect(1)
+        .mount(&server)
+        .await;
+    let body = common::graph(&server).body("m1").await.unwrap();
+    assert_eq!(body.body.content, "<img src=\"cid:logo\">");
+    assert_eq!(body.attachments.len(), 2);
+    assert_eq!(body.attachments[0].content_id.as_deref(), Some("logo"));
+    assert!(body.attachments[0].is_inline);
+    assert_eq!(body.attachments[1].id, "mail");
+    assert_eq!(body.attachments[1].content_id, None);
+}
+
+#[tokio::test]
 async fn the_well_known_folders_come_in_one_batch() {
     let server = MockServer::start().await;
     common::token_endpoint(&server, "r").await;

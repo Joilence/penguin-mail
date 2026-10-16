@@ -7,6 +7,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
+- Microsoft messages with attachments open without the contentId request error.
 - IMAP Junk and Trash show messages on the server even when they have not synced to this computer.
 
 ## 1.0.9 (2026-10-16)

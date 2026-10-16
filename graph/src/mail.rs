@@ -463,7 +463,8 @@ impl Graph {
                 ("$select", "body,hasAttachments"),
                 (
                     "$expand",
-                    "attachments($select=id,name,contentType,size,isInline,contentId)",
+                    // contentId is defined on fileAttachment, not attachment.
+                    "attachments($select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId)",
                 ),
             ],
         )
