@@ -95,7 +95,12 @@ impl Pane for ListPane {
         for notice in &listing.notices {
             win.toast(notice);
         }
-        let rows = listing.rows.into_iter().map(Rc::new).collect();
+        let rows = win
+            .in_flight
+            .keep_out(listing.rows)
+            .into_iter()
+            .map(Rc::new)
+            .collect();
         win.list.set_empty_description(&listing.empty.description);
         win.list
             .set_rows(rows, &listing.empty.title, listing.empty.icon);
@@ -105,13 +110,15 @@ impl Pane for ListPane {
 
     fn append(&self, rows: Vec<ThreadSummary>) {
         if let Some(win) = self.window() {
+            let rows = win.in_flight.keep_out(rows);
             win.list.append(rows.into_iter().map(Rc::new).collect());
         }
     }
 
     fn replace(&self, changed: &[Named], rows: Vec<ThreadSummary>, title: &str, subtitle: &str) {
         let Some(win) = self.window() else { return };
-        win.list.replace_threads(changed, rows);
+        win.list
+            .replace_threads(changed, win.in_flight.keep_out(rows));
         win.follow_selection();
         win.list.set_title(title, subtitle);
     }

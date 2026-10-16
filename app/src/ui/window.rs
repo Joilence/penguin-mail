@@ -58,6 +58,7 @@ mod flags;
 mod followup;
 mod hide_my_email;
 mod images;
+mod in_flight;
 mod invitation;
 mod listing;
 mod message_menu;
@@ -117,6 +118,9 @@ pub struct MainWindow {
     app: Weak<App>,
     core: Rc<Core>,
     toasts: adw::ToastOverlay,
+    /// Mail actions still on their way to the server: the rows they took
+    /// out of the list and the toast that speaks for them.
+    in_flight: in_flight::InFlight,
     /// Says a release is available, installing, waiting to restart, or failed.
     update_banner: adw::Banner,
     /// Says a snap cannot reach the keyring and gives the command that
@@ -869,6 +873,7 @@ impl MainWindow {
                 app: Rc::downgrade(app),
                 core: Rc::clone(&app.core),
                 toasts,
+                in_flight: in_flight::InFlight::default(),
                 update_banner,
                 keyring_banner,
                 grant_banners,
@@ -2035,32 +2040,35 @@ impl MainWindow {
         if targets.is_empty() {
             return;
         }
+        // The rows leave and the toast shows now; the server may take a
+        // while, behind a sync pass or a slow connection.
+        let asked = targets.len();
+        let leaving = aftermath::leaves(&action, &self.shown()).then(|| {
+            self.list
+                .retain(|row| !targets.iter().any(|target| aftermath::covers(target, row)));
+            self.follow_selection();
+            self.in_flight.leave(&targets)
+        });
+        let run = match history {
+            History::Record => Some(self.announce(&action, asked, message)),
+            History::Skip => None,
+        };
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
             let outcome = this.core.act(targets, action.clone(), history, from).await;
+            if let Some(leaving) = leaving {
+                this.in_flight.arrived(leaving);
+            }
             this.after_mail(Cause::Did(&action, history), &outcome, None);
+            if let Some(run) = &run {
+                this.ran(run, &outcome);
+            }
+            // What the action did not change lists again where it was.
+            if leaving.is_some() && outcome.done.len() < asked {
+                this.listing.everything();
+            }
             if let Some(error) = outcome.first_error() {
-                return this.toast(error);
-            }
-            if history == History::Skip {
-                return;
-            }
-            let count = outcome.done.len();
-            if let Some(done) = message
-                .or_else(|| done_message(&action, count, this.settings_with(|s| s.threading)))
-            {
-                let toast = adw::Toast::builder()
-                    .title(toast_title(&done))
-                    .button_label(gettext("Undo"))
-                    .timeout(5)
-                    .build();
-                let weak = Rc::downgrade(&this);
-                toast.connect_button_clicked(move |_| {
-                    if let Some(win) = weak.upgrade() {
-                        win.undo();
-                    }
-                });
-                this.toasts.add_toast(toast);
+                this.say_now(error);
             }
         });
     }
@@ -2069,19 +2077,18 @@ impl MainWindow {
     /// the window or the assistant took it. The one before it is left for
     /// the next press.
     fn undo(self: &Rc<Self>) {
+        // An action still on its way is not on the stack yet, and pressing
+        // Undo right after it means that one.
+        if self.undo_newest() {
+            return;
+        }
         let this = Rc::clone(self);
         glib::spawn_future_local(async move {
-            let Some(undone) = this.core.undo().await else {
-                return this.toast(&gettext("Nothing to undo"));
-            };
-            this.after_mail(Cause::Undid, &undone.outcome, None);
-            match undone.outcome.first_error() {
-                Some(error) => this.toast(error),
-                None => this.toast(&fill(
-                    &gettext("{action} undone"),
-                    &[("action", &undone.words)],
-                )),
+            let undone = this.core.undo().await;
+            if let Some(undone) = &undone {
+                this.after_mail(Cause::Undid, &undone.outcome, None);
             }
+            this.say_undone(undone);
         });
     }
 

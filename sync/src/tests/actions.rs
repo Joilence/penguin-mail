@@ -904,6 +904,7 @@ async fn deleting_forever_takes_the_mail_out_of_gmail_and_the_store() {
         Permitted::Done(Outcome {
             done: vec![target],
             failed: vec![],
+            recorded: None,
         })
     );
     assert!(!in_gmail(&h, "a"), "Gmail no longer holds the message");
