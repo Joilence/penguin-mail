@@ -12,6 +12,7 @@ the [releases page](https://github.com/c9dev/penguin-mail/releases).
 
 ### Fixed
 
+- The Snap can access the graphics devices it needs at startup ([#62](https://github.com/c9dev/penguin-mail/issues/62)).
 - macOS notifications use temporary banners by default, offer all selected buttons, and keep mail actions in the background.
 
 - Assistant skill scripts can run with the Nix package, including on NixOS.
