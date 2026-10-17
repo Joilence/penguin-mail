@@ -6350,7 +6350,7 @@ msgid "Could not delete the event: {reason}"
 msgstr "Không thể xóa sự kiện: {reason}"
 
 #: app/src/ui/calendar/mod.rs:2184 app/src/ui/composer/mod.rs:1392
-#: app/src/ui/window/in_flight.rs:242 app/src/ui/window/scheduled.rs:98
+#: app/src/ui/window/in_flight.rs:244 app/src/ui/window/scheduled.rs:98
 #: app/src/ui/window/shortcuts.rs:462
 msgid "Undo"
 msgstr "Hoàn tác"
@@ -10139,15 +10139,15 @@ msgstr "Từ nay sẽ tải hình ảnh từ {sender}"
 msgid "Could not remember that sender: {reason}"
 msgstr "Không thể ghi nhớ người gửi đó: {reason}"
 
-#: app/src/ui/window/in_flight.rs:307 app/src/ui/window/in_flight.rs:325
+#: app/src/ui/window/in_flight.rs:309 app/src/ui/window/in_flight.rs:327
 msgid "Undo will run when this finishes"
 msgstr "Sẽ hoàn tác ngay khi việc này xong"
 
-#: app/src/ui/window/in_flight.rs:354
+#: app/src/ui/window/in_flight.rs:356
 msgid "Nothing to undo"
 msgstr "Không có gì để hoàn tác"
 
-#: app/src/ui/window/in_flight.rs:359
+#: app/src/ui/window/in_flight.rs:361
 msgid "{action} undone"
 msgstr "Đã hoàn tác {action}"
 

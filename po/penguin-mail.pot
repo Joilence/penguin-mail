@@ -6120,7 +6120,7 @@ msgid "Could not delete the event: {reason}"
 msgstr ""
 
 #: app/src/ui/calendar/mod.rs:2184 app/src/ui/composer/mod.rs:1392
-#: app/src/ui/window/in_flight.rs:242 app/src/ui/window/scheduled.rs:98
+#: app/src/ui/window/in_flight.rs:244 app/src/ui/window/scheduled.rs:98
 #: app/src/ui/window/shortcuts.rs:462
 msgid "Undo"
 msgstr ""
@@ -9873,15 +9873,15 @@ msgstr ""
 msgid "Could not remember that sender: {reason}"
 msgstr ""
 
-#: app/src/ui/window/in_flight.rs:307 app/src/ui/window/in_flight.rs:325
+#: app/src/ui/window/in_flight.rs:309 app/src/ui/window/in_flight.rs:327
 msgid "Undo will run when this finishes"
 msgstr ""
 
-#: app/src/ui/window/in_flight.rs:354
+#: app/src/ui/window/in_flight.rs:356
 msgid "Nothing to undo"
 msgstr ""
 
-#: app/src/ui/window/in_flight.rs:359
+#: app/src/ui/window/in_flight.rs:361
 msgid "{action} undone"
 msgstr ""
 
